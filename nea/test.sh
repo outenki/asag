@@ -1,0 +1,2 @@
+MKL_THREADING_LAYER=GNU KERAS_BACKEND='theano' THEANO_FLAGS="floatX=float32" python train_nea.py -tr data/fold_0/train.tsv -tu data/fold_0/dev.tsv -ts data/fold_0/test.tsv -p 1 -o output
+MKL_THREADING_LAYER=GNU KERAS_BACKEND='theano' THEANO_FLAGS="device=cuda0,floatX=float32" python train_nea.py -tr data/xcsd_6ways/1_1/train.tsv -tu data/xcsd_6ways/1_1/dev.tsv -ts data/xcsd_6ways/1_1/test.tsv -p 1 -o xcsd/1_1/
