@@ -8,6 +8,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('-d', '--data_path', dest='data_path', required=True, help='Path to data')
 parser.add_argument('-p', '--process', dest='num_process', type=int, required=True, help='Number of multiprocess')
 parser.add_argument('-g', '--gpu', dest='gpu', required=True, help='Code of GPU device')
+parser.add_argument('-e', '--emd', dest='emd', required=False, default='', help='w2v file')
 args = parser.parse_args()
 
 # Data path and output path
@@ -23,6 +24,8 @@ if not os.path.exists(path_out):
 
 def run_shell(path_i, path_o):
     cmd="MKL_THREADING_LAYER=GNU KERAS_BACKEND='theano' THEANO_FLAGS='device=cuda%s,floatX=float32' python train_nea.py --aggregation attmean -tr %s/train.tsv -tu %s/dev.tsv -ts %s/test.tsv -p 0 -o %s" % (args.gpu, path_i, path_i, path_i, path_o)
+    if parser.emd:
+        cmd += ' --emd ' + parser.emd
     os.system(cmd)
 
 def run_on_list(path_data, path_in, path_out):
