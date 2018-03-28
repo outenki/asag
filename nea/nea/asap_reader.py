@@ -35,6 +35,10 @@ def get_ref_dtype():
 def tokenize(string):
     tokens = nltk.word_tokenize(string)
     for index, token in enumerate(tokens):
+        # ????? not sure what todo ?????
+        # seems here recoganize some specific token in form of @abc
+        # instead of @ and abc, but remove subsequence starting with
+        # digitals from [abc]
         if token == '@' and (index+1) < len(tokens):
             tokens[index+1] = '@' + re.sub('[0-9]+.*', '', tokens[index+1])
             tokens.pop(index)
@@ -44,6 +48,7 @@ def get_score_range(prompt_id):
     return asap_ranges.get(prompt_id, asap_ranges[0])
 
 def get_model_friendly_scores(scores_array, prompt_id_array):
+    # Convert scores of essays to boundary of [0, 1]
     arg_type = type(prompt_id_array)
     assert arg_type in {int, np.ndarray}
     if arg_type is int:
@@ -88,6 +93,10 @@ def load_vocab(vocab_path):
     return vocab
 
 def create_vocab(file_path, prompt_id, maxlen, vocab_size, tokenize_text, to_lower):
+    # !!!!! WARNING !!!!! 
+    # There are some hard coding in this part of code.
+    # When read in info from tsv files, the position of essay_id, esasy_set, score, etc.
+    # are hard coded. Especially **score** is set defaultly as **6** also at other places.
     logger.info('Creating vocabulary from: ' + file_path)
     if maxlen > 0:
         logger.info('  Removing sequences with more than ' + str(maxlen) + ' words')
@@ -109,6 +118,8 @@ def create_vocab(file_path, prompt_id, maxlen, vocab_size, tokenize_text, to_low
                 else:
                     content = content.split()
                 if maxlen > 0 and len(content) > maxlen:
+                    # When `maxlen` is larger than 0, it means a limitation
+                    # was set. Then skip sentences that are too long
                     continue
                 for word in content:
                     try:
@@ -119,9 +130,14 @@ def create_vocab(file_path, prompt_id, maxlen, vocab_size, tokenize_text, to_low
                     total_words += 1
     logger.info('  %i total words, %i unique words' % (total_words, unique_words))
     import operator
+    # sort word_freqs by frequency
     sorted_word_freqs = sorted(word_freqs.items(), key=operator.itemgetter(1), reverse=True)
     if vocab_size <= 0:
         # Choose vocab size automatically by removing all singletons
+        # Only the top-vocab_size words will be returned as vocab
+        # vocab_size is a parameter from train_nea defaultly set as 4000
+        # If vocab_size was set as 0, then calculate it as the number of 
+        # words appeared more than once.
         vocab_size = 0
         for word, freq in sorted_word_freqs:
             if freq > 1:
@@ -150,6 +166,7 @@ def read_essays(file_path, prompt_id):
 def read_dataset(file_path, prompt_id, maxlen, vocab, tokenize_text, to_lower, score_index=6, char_level=False):
     logger.info('Reading dataset from: ' + file_path)
     if maxlen > 0:
+        # maxlen is defaultly set as 0, meaning no limation to the length of sentences
         logger.info('  Removing sequences with more than ' + str(maxlen) + ' words')
     data_x, data_y, prompt_ids = [], [], []
     num_hit, unk_hit, total = 0., 0., 0.
@@ -181,6 +198,8 @@ def read_dataset(file_path, prompt_id, maxlen, vocab, tokenize_text, to_lower, s
                 else:
                     for word in content:
                         if is_number(word):
+                            # !!!!! discard the values of numbers appearing in the sentences !!!!!
+                            # In this way, make sure all the numbers are in [vocab]
                             indices.append(vocab['<num>'])
                             num_hit += 1
                         elif word in vocab:
@@ -202,6 +221,7 @@ def get_data(paths, prompt_id, vocab_size, maxlen, tokenize_text=True, to_lower=
     train_path, dev_path, test_path = paths[0], paths[1], paths[2]
     
     if not vocab_path:
+        # vocab is a dict with words as the keys and index of the words as the values.
         vocab = create_vocab(train_path, prompt_id, maxlen, vocab_size, tokenize_text, to_lower)
         if len(vocab) < vocab_size:
             logger.warning('The vocabualry includes only %i words (less than %i)' % (len(vocab), vocab_size))
@@ -214,9 +234,12 @@ def get_data(paths, prompt_id, vocab_size, maxlen, tokenize_text=True, to_lower=
     logger.info('  Vocab size: %i' % (len(vocab)))
     
     train_x, train_y, train_prompts, train_maxlen = read_dataset(train_path, prompt_id, maxlen, vocab, tokenize_text, to_lower)
+    # ????? Here is confusing ????
+    # Why for dev and test data the prompt is not assigned?
     dev_x, dev_y, dev_prompts, dev_maxlen = read_dataset(dev_path, prompt_id, 0, vocab, tokenize_text, to_lower)
     test_x, test_y, test_prompts, test_maxlen = read_dataset(test_path, prompt_id, 0, vocab, tokenize_text, to_lower)
     
+    # maxlen is used as width of matrix MAYBE
     overal_maxlen = max(train_maxlen, dev_maxlen, test_maxlen)
     
     return ((train_x,train_y,train_prompts), (dev_x,dev_y,dev_prompts), (test_x,test_y,test_prompts), vocab, len(vocab), overal_maxlen, 1)
