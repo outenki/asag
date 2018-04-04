@@ -1,209 +1,107 @@
-import nltk
-import os
-import string
-import time
+import operator
 import numpy as np
-from sklearn import neighbors
-from config import *
+import utils
+import spacy
 
-# # Paths
-# SCRIPT_PATH = os.path.dirname(os.path.abspath(__file__))
-# # DATA_PATH = SCRIPT_PATH + "/../data/ShortAnswerGrading_v2.0/data"
-# DATA_PATH = SCRIPT_PATH + "/../data/sciEntsBank/train"
-# # DATA_PATH = SCRIPT_PATH + "/../data/sciEntsBank/test-unseen-questions"
-# # DATA_PATH = SCRIPT_PATH + "/../data/sciEntsBank/test-unseen-answers"
-# # DATA_PATH = SCRIPT_PATH + "/../data/sciEntsBank/test-unseen-domains"
-#
-# # RESULTS_PATH = SCRIPT_PATH + "/../results_sag"
-# RESULTS_PATH = SCRIPT_PATH + "/../results_semi_train"
-# # RESULTS_PATH = SCRIPT_PATH + "/../results_semi_uq"
-# # RESULTS_PATH = SCRIPT_PATH + "/../results_semi_ua"
-# # RESULTS_PATH = SCRIPT_PATH + "/../results_semi_ud"
-# RAW_PATH = DATA_PATH + "/raw"
-# RAW_PATH_STU = DATA_PATH + "/raw/ans_stu"
-
-
-def cur_time():
-    return time.strftime('%Y%m%d%H%M%S', time.localtime(time.time()))
-def get_tokens(text):
-    lower = text.lower()
-    remove_punctuation_map = dict((ord(char), None) for char in string.punctuation)
-    no_punctuation = lower.translate(remove_punctuation_map)
-    tokens = nltk.word_tokenize(no_punctuation)
-    return tokens
-def read_tokens_answer(answer):
-    # Answers are starts with answer id
-    # Remove answer id first before extract tokens
-    answer = answer[answer.find(' ') + 1:]
-    return set(get_tokens(answer))
-
-def read_tokens_answers(que_id, ref = True):
+def vocab_from_tokens(token_list, size=0):
     '''
-    Read answers under one question and return a tuple of tokens.
-    The length of tuple of tokens is used as the length of BOW.
-    :param fn_question:
-    question id, it should be same to the file name.
-    :return:
+    Generate vocabulary from tokens. The tokens will be sorted by frequency.
+    :param token_list: list of list (tokens).
+    :param size: size of vocab. All the tokens will be counted in if 0 is set.
+    :return: A dict with token as keys and index as values
+    >>> vocab([['a','b','c', 'b'],['b','c','a','d']])
+    {'a': 0, 'b': 1, 'c': 2, 'd': 3}
     '''
-    token_set = set()
-    if ref:
-        # read reference answer
-        with open(RAW_PATH + "/answers", errors="ignore") as f_ref:
-            for answer in f_ref.readlines():
-                if answer.startswith(que_id):
-                    token_set = token_set.union(read_tokens_answer(answer))
-                    break
+    vocab_dict = dict()
+    for ts in token_list:
+        for t in ts:
+            try:
+                vocab_dict[t] += 1
+            except KeyError:
+                vocab_dict[t] = 1 # vocab_set = set()
+    # for ts in token_list:
+    #    vocab_set = vocab_set.union(set(ts))
+    # sorted_vocab = sorted(vocab_set)
 
-    # read student answers
-    with open(RAW_PATH_STU + "/" + que_id, "r", errors="ignore") as f_ans_raw:
-        try:
-            for answer in f_ans_raw.readlines():
-                token_set = token_set.union(read_tokens_answer(answer))
-        except:
-            print("error:", answer)
-    assert token_set
-    return token_set
+    # sort vocab by frequency
+    vocab_frequency = sorted(vocab_dict.items(), key=operator.itemgetter(1), reverse=True)
+    return {item[0]:idx for (idx, item) in enumerate(vocab_frequency)}
 
-def generate_bow_features(ref = True):
-    for que_id in os.listdir(RAW_PATH_STU):
-        print(que_id)
-        # if que_id in ['questions', 'answers', 'count']:
-            # skip this files
-            # continue
-
-        # generate bow features
-        tokens_all = tuple(read_tokens_answers(que_id, ref))
-
-        with open(RESULTS_PATH+"/features_bow/" + que_id, "wt", encoding='utf-8', errors="ignore") as f_fea,\
-            open(RAW_PATH_STU + "/" + que_id, "r", encoding='utf-8', errors="ignore") as f_ans:
-            for answer in f_ans.readlines():
-                tokens_answer = read_tokens_answer(answer)
-                bow = [1] * len(tokens_all)
-                for i in range(len(tokens_all)):
-                    # print(tokens_all[i])
-                    bow[i] = 1 if tokens_all[i] in tokens_answer else 0
-                print(*bow, file=f_fea, sep=',')
-                # print(bow)
-
-def read_training_data(feature_path):
+def generate_bow_feature_from_text(nlp, vocab, text, ngram):
     '''
-    Read features and labels for training. This function will read all the features
-    and scores of each answer for each question.
-    :param feature_path: path/of/feature/files/.
-    :return: A dict with structure as below
-    # data_dic = {
-    #   '1.1':{
-    #       'truth': array(n*1)
-    #       'features': array(n*30)
-    #       'diff': array(n*30)
-    #   }
-    # }
+    Generate ngram bow feature vector for input text
+    :param nlp: Instance of spacy model
+    :param vocab: Dict with token tuple as key and index as value
+    :param text: Input text
+    :param ngram: n-gram
+    :return: 1-D numpy array with same size to vocab.
+    >>> generate_bow_feature(spacy.load('en'), {(u'a',):0, (u'b',):1, (u'c',): 3}, u'a b', 1)
+    array([1., 1., 0.])
     '''
-    scores_truth_path = DATA_PATH + '/scores/'
-    que_ids = os.listdir(feature_path)
-    data_dict = {}
-    for que_id in que_ids:
-        data_dict[que_id] = {}
-        with open(feature_path + que_id, 'r') as ff, \
-                open(scores_truth_path + que_id + '/ave') as fs, \
-                open(RAW_PATH + "/answers", "r", errors="ignore") as f_raw_r, \
-                open(RAW_PATH + "/questions", "r", errors="ignore") as f_raw_q, \
-                open(RAW_PATH_STU + "/" + que_id, "r", errors="ignore") as f_raw_s, \
-                open(scores_truth_path + que_id + '/diff') as fd:
-            scores_truth = np.array(list(map(np.float64, fs.readlines())))
-            diff = np.array(list(map(np.float64, fd.readlines())))
-            features = list(map(lambda s: s.split(','), ff.readlines()))
-            features = np.array(list(map(lambda l: list(map(np.float64, l)), features)))
-            raw_r, raw_q, raw_s = '', '', []
-            for s in f_raw_q.readlines():
-                if s.startswith(que_id):
-                    raw_q = s
-                    break
+    # tokenize text
+    bow = np.zeros(len(vocab))
+    tokens = utils.tokenize(nlp, text, rm_punct=True, ngram=ngram)
+    for t in tokens:
+        bow[vocab[t]] = 1
+    return bow
 
-            for s in f_raw_r.readlines():
-                if s.startswith(que_id):
-                    raw_r = s
-                    break
-
-            raw_s = np.array(list(map(lambda s:s.strip(), f_raw_s.readlines())))
-
-            data_dict[que_id]['scores_truth'] = scores_truth
-            data_dict[que_id]['features'] = features
-            data_dict[que_id]['diff'] = diff
-            data_dict[que_id]['question'] = raw_q.strip()
-            data_dict[que_id]['ans_ref'] = raw_r.strip()
-            data_dict[que_id]['ans_stu'] = raw_s
-    return data_dict
-
-def run_knn_question_wise(fn, feature_type, reliable, n_neighbors, weight, p=2, training_scale = 0):
+def generate_bow_feature_from_tokens(vocab, tokens):
     '''
-    Run knn algorithm using all other answers under the same question as training data.
-    :param fn: File name to save the results.
-    :param feature_type: For now it may be one of 'bow', 'g', 'b' or 'gb'.
-    :param reliable:
-        When `reliable` is True, answers whose score is with diff over 2 will
-        be removed from training data
-    :param n_neighbors: Parameter for KNN. The number neighbors.
-    :param weight:
-        Weight function used in prediction. Possible values:
-        ‘uniform’ : uniform weights. All points in each neighborhood are weighted equally.
-        ‘distance’ : weight points by the inverse of their distance. in this case,
-            closer neighbors of a query point will have a greater influence than neighbors
-            which are further away.
-        [callable] : a user-defined function which accepts an array of distances,
-            and returns an array of the same shape containing the weights.
-    :return: None
+    Generate ngram bow feature vector for tokenized text
+    :param vocab: Dict with token tuple as key and index as value
+    :param tokens: Tokenized text
+    :return: 1-D numpy array with same size to vocab.
+    >>> generate_bow_feature(spacy.load('en'), {(u'a',):0, (u'b',):1, (u'c',): 3}, [u'a', u'b'])
+    array([1., 1., 0.])
     '''
-    feature_path = RESULTS_PATH + '/features_{}/'.format(feature_type)
-    data_dict = read_training_data(feature_path)
-    # fn = fn +  '.' + feature_type + '.' +  cur_time()
-    fn = '{}.{}.{}.{}.{}.{}.{}.{}'.format(feature_type, fn, n_neighbors, p,
-                                          'reliable' if reliable else 'unreliable', weight, training_scale, cur_time())
-    result_path = RESULTS_PATH + '/results/' + fn
-    if not os.path.exists(result_path):
-        os.mkdir(result_path)
+    # print('vocab:', vocab)
+    # print('tokens:', tokens)
+    bow = np.zeros(len(vocab))
+    for t in tokens:
+        bow[vocab[t]] = 1
+    return bow
 
-    with open(result_path + '/result', 'w') as fr:
-        for que_id in data_dict:
-            for i in range(len(data_dict[que_id]['scores_truth'])):
-                # i refers an answer
-                # Train knn for each answer with all other answers
+def gen_bow_for_records(records, pos_ans, ngram):
+    '''
+    Generate feature for answers to a question from a list of records.
+    The records are expected to be a list starting with: [AnswerId, QuestionId, Score, ...]
+    1. Read all the answers
+    2. Generate vocab with answers
+    3. Generate feature for each answer
+        3.1 tokenize the answer
+        3.2 Generate n-gram 
+        3.3 Set featue values as 0 or 1 in an array
+    :param records: A list of records read from a tsv file.
+    :param ans_pos: Appoint the position of answer in the record.
+    :param ngram: Generate n-gram bow feature
+    :return: 
+        A list of results in form of AnswerID\tQuestionID\tScore\tFeature
+        Used vocabulary
+    '''
+    # generate vocab
+    logger.info("Generating vocab ...")
+    token_list = []
+    for items in records:
+        ans = items[pos_ans]
+        nt = tokenize(NLP, text=ans, rm_punct=True, ngram=ngram)
+        token_list.append(nt)
+    vocab = vocab_from_tokens(token_list)
+    logger.info("\tsize of vocab: %d" % len(vocab))
+    
+    features = []
+    # Generate feature for each answer
+    logger.info("\tGenerating features ...")
+    # for aid, qid, sco, t in zip(ans_ids, que_ids, scores, token_list):
+    for items, token in zip(records, token_list):
+        ans_id = items[POS_AID]
+        que_id = items[POS_QID]
+        score = items[POS_SCORE]
+        fea = ','.join(generate_bow_feature_from_tokens(vocab, token).astype(str))
+        features.append('{aid}\t{qid}\t{score}\t{fea}\n'.format(aid=ans_id, qid=que_id, score=score, fea=fea))
+    return features
 
-                # remove unreliable training data
-                array_filter = data_dict[que_id]['diff'] < 3 if reliable else np.array(
-                    [True] * len(data_dict[que_id]['diff']))
-                # remove current answer (to be predicted)
-                array_filter[i] = False
 
-                scores_truth = data_dict[que_id]['scores_truth'][array_filter]
-                features = data_dict[que_id]['features'][array_filter]
-
-                X = features
-                Y = scores_truth
-                Y = (Y * 2).astype(int)
-                score_truth_i = data_dict[que_id]['scores_truth'][i]
-                feature_i = data_dict[que_id]['features'][i:i + 1]
-                if n_neighbors > len(X):
-                    n_neighbors = len(X)
-                clf = neighbors.KNeighborsClassifier(n_neighbors, weights=weight)
-                clf.fit(X, Y)
-
-                # predict
-                score = clf.predict(feature_i) / 2
-                error = score_truth_i - score[0]
-                error_abs = abs(error)
-                error_round = round(error_abs)
-                question = data_dict[que_id]["question"]
-                ans_ref = data_dict[que_id]["ans_ref"]
-                ans_stu = data_dict[que_id]["ans_stu"][i]
-                print('score of {}.{}: {}: {}: {}: {}: {}: {}: {}: {}'.format(que_id, i + 1, score[0], score_truth_i, error,
-                                                                  error_abs, error_round, question, ans_ref, ans_stu))
-                print('score of {}.{}: {}: {}: {}: {}: {}: {}: {}: {}'.format(que_id, i + 1, score[0], score_truth_i, error,
-                                                                  error_abs, error_round, question, ans_ref, ans_stu), file=fr)
-
+    
 if __name__ == '__main__':
-    # generate_bow_features()
-    # for k in [5, 10, 20, 30]:
-    run_knn_question_wise('knn.qwise', 'bow', True, n_neighbors=5, weight='uniform', p=2, training_scale=0)
-    run_knn_question_wise('knn.qwise', 'bow', True, n_neighbors=5, weight='distance', p=2, training_scale=0)
-
+    import doctest
+    doctest.testmod(verbose=True)
