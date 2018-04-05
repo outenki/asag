@@ -2,8 +2,15 @@ import operator
 import numpy as np
 import utils
 import spacy
+import logging
+import pickle
+logger = logging.getLogger(__name__)
+NLP = spacy.load('en')
+POS_AID = 0
+POS_QID = 1
+POS_SCORE = 2
 
-def vocab_from_tokens(token_list, size=0):
+def vocab_from_tokens(token_list, save_path, size=0):
     '''
     Generate vocabulary from tokens. The tokens will be sorted by frequency.
     :param token_list: list of list (tokens).
@@ -24,8 +31,13 @@ def vocab_from_tokens(token_list, size=0):
     # sorted_vocab = sorted(vocab_set)
 
     # sort vocab by frequency
-    vocab_frequency = sorted(vocab_dict.items(), key=operator.itemgetter(1), reverse=True)
-    return {item[0]:idx for (idx, item) in enumerate(vocab_frequency)}
+    # vocab_frequency = sorted(vocab_dict.items(), key=operator.itemgetter(1), reverse=True)
+    vocab_sorted = sorted(vocab_dict.items(), key=lambda i: (i[1], i[0]), reverse=True)
+    with open('%s/token_freq' % save_path, 'w') as ft:
+        for item, freq in vocab_sorted:
+            ft.write('{}\t{}\n'.format(item, freq))
+
+    return {item[0]:idx for (idx, item) in enumerate(vocab_sorted)}
 
 def generate_bow_feature_from_text(nlp, vocab, text, ngram):
     '''
@@ -61,7 +73,7 @@ def generate_bow_feature_from_tokens(vocab, tokens):
         bow[vocab[t]] = 1
     return bow
 
-def gen_bow_for_records(records, pos_ans, ngram):
+def gen_bow_for_records(records, pos_ans, ngram, path_save_token):
     '''
     Generate feature for answers to a question from a list of records.
     The records are expected to be a list starting with: [AnswerId, QuestionId, Score, ...]
@@ -83,9 +95,9 @@ def gen_bow_for_records(records, pos_ans, ngram):
     token_list = []
     for items in records:
         ans = items[pos_ans]
-        nt = tokenize(NLP, text=ans, rm_punct=True, ngram=ngram)
+        nt = utils.tokenize(NLP, text=ans, rm_punct=True, ngram=ngram)
         token_list.append(nt)
-    vocab = vocab_from_tokens(token_list)
+    vocab = vocab_from_tokens(token_list, path_save_token)
     logger.info("\tsize of vocab: %d" % len(vocab))
     
     features = []
@@ -98,7 +110,7 @@ def gen_bow_for_records(records, pos_ans, ngram):
         score = items[POS_SCORE]
         fea = ','.join(generate_bow_feature_from_tokens(vocab, token).astype(str))
         features.append('{aid}\t{qid}\t{score}\t{fea}\n'.format(aid=ans_id, qid=que_id, score=score, fea=fea))
-    return features
+    return features, vocab
 
 
     

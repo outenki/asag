@@ -1,8 +1,19 @@
 from scipy import spatial
+import numpy as np
 import nltk
 from nltk.util import ngrams
 import spacy
 import time
+import os
+
+def check_c_path(path):
+    '''
+    check if path exist or not.
+    If not, creat it.
+    :param path: string of path.
+    '''
+    if not os.path.exists(path):
+        os.makedirs(path)
 
 def cur_time():
     '''
@@ -42,13 +53,13 @@ def generate_training_test_data_f(fn, train_ratio=0.8):
     :param train_ratio: Ratio of training data. 0.8 as default.
     :return: Training data and test data in form of `AID\tQID\tSCORE\tFEATURE`
     '''
-    with open(fn, 'r') as f_data:
-        f_data.readline()
-        data = np.array(f_data.readlines())
+    data = np.loadtxt(fn, skiprows=1, dtype=str)
+    # with open(fn, 'r') as f_data:
+    #     f_data.readline()
+    #     data = np.array(f_data.readlines())
     leng = len(data)
     edge = int(leng * train_ratio)
     return data[:edge], data[edge:]
-    
 
 if __name__ == '__main__':
     import doctest

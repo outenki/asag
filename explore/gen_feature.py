@@ -4,8 +4,9 @@ import argparse
 import logging
 import os
 import spacy
-from utils import cur_time, tokenize
+from utils import cur_time, tokenize, check_c_path
 from bow import *
+import pickle
 
 from itertools import groupby
 
@@ -26,10 +27,6 @@ if not os.path.exists(out_dir):
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename='%s/gen_fea.log' % out_dir, level=logging.INFO)
 
-NLP = spacy.load('en')
-POS_AID = 0
-POS_QID = 1
-POS_SCORE = 2
 
 # read records from tsv file
 with open(args.input_file, 'r', encoding='utf-8') as f_tsv:
@@ -48,19 +45,27 @@ with open(args.input_file, 'r', encoding='utf-8') as f_tsv:
         # generate feature for everyquestion, 
         # and the output filename is created based on the que_id
         for qid, rec in qid_records:
+            path_q = '%s/%s' % (out_dir, qid)
+            check_c_path(path_q)
             rec = list(rec)
             logger.info("Processing question %s" % qid)
-            features = gen_bow_for_records(rec, pos_ans=args.ans_pos, ngram=args.ngram)
-            with open('%s/%s_%s' % (out_dir, args.fea_type, qid), 'w') as f_out:
+            features, vocab = gen_bow_for_records(rec, pos_ans=args.ans_pos, ngram=args.ngram, path_save_token=path_q)
+            with open('%s/%s/%s.fea' % (out_dir, qid, args.fea_type), 'w') as f_out:
                 f_out.write(titles)
                 f_out.writelines(features)
+            with open('%s/vocab' % path_q, 'wb') as f:
+                pickle.dump(vocab, f)
     else:
         # only generate feature for appointed que_id
         for qid, rec in qid_records:
             if qid == str(args.que_id):
+                path_q = '%s/%s' % (out_dir, qid)
+                check_c_path(path_q)
                 logger.info("Processing question %s" % qid)
-                features = gen_bow_for_records(rec, pos_ans=args.ans_pos, ngram=args.ngram)
-                with open('%s/%s_%s' % (out_dir, args.fea_type, qid), 'w') as f_out:
+                features, vocab = gen_bow_for_records(rec, pos_ans=args.ans_pos, ngram=args.ngram)
+                with open('%s/%s/%s.fea' % (out_dir, qid, args.fea_type), 'w') as f_out:
                     f_out.write(titles)
                     f_out.writelines(features)
+                with open('%s/vocab' % path_q, 'wb') as f:
+                    pickle.dump(vocab, f)
     logger.info("Done!")
