@@ -33,7 +33,10 @@ def vocab_from_tokens(token_list, save_path, size=0):
     # sort vocab by frequency
     # vocab_frequency = sorted(vocab_dict.items(), key=operator.itemgetter(1), reverse=True)
     vocab_sorted = sorted(vocab_dict.items(), key=lambda i: (i[1], i[0]), reverse=True)
-    with open('%s/token_freq' % save_path, 'w') as ft:
+    if size > 0:
+        # only the {size}th most frequent tokens are counted in as vocabulary.
+        vocab_sorted = vocab_sorted[:size]
+    with open('%s/token_freq.txt' % save_path, 'w') as ft:
         for item, freq in vocab_sorted:
             ft.write('{}\t{}\n'.format(item, freq))
 
@@ -69,11 +72,13 @@ def generate_bow_feature_from_tokens(vocab, tokens):
     # print('vocab:', vocab)
     # print('tokens:', tokens)
     bow = np.zeros(len(vocab))
+    assert max(vocab.values()) + 1 == len(bow)
     for t in tokens:
-        bow[vocab[t]] = 1
+        if t in vocab:
+            bow[vocab[t]] = 1
     return bow
 
-def gen_bow_for_records(records, pos_ans, ngram, path_save_token):
+def gen_bow_for_records(records, pos_ans, ngram, path_save_token, vocab_size):
     '''
     Generate feature for answers to a question from a list of records.
     The records are expected to be a list starting with: [AnswerId, QuestionId, Score, ...]
@@ -81,12 +86,14 @@ def gen_bow_for_records(records, pos_ans, ngram, path_save_token):
     2. Generate vocab with answers
     3. Generate feature for each answer
         3.1 tokenize the answer
-        3.2 Generate n-gram 
+        3.2 Generate n-gram
         3.3 Set featue values as 0 or 1 in an array
     :param records: A list of records read from a tsv file.
     :param ans_pos: Appoint the position of answer in the record.
     :param ngram: Generate n-gram bow feature
-    :return: 
+    :param vocab_size: Size of vocabulary that will be generated. 
+                    All the tokens will be counted in when 0 is set.
+    :return:
         A list of results in form of AnswerID\tQuestionID\tScore\tFeature
         Used vocabulary
     '''
@@ -97,9 +104,9 @@ def gen_bow_for_records(records, pos_ans, ngram, path_save_token):
         ans = items[pos_ans]
         nt = utils.tokenize(NLP, text=ans, rm_punct=True, ngram=ngram)
         token_list.append(nt)
-    vocab = vocab_from_tokens(token_list, path_save_token)
-    logger.info("\tsize of vocab: %d" % len(vocab))
-    
+    vocab = vocab_from_tokens(token_list, path_save_token, vocab_size)
+    logger.info("\tVocab_size: %d", vocab_size)
+    logger.info("\tsize of vocab: %d", len(vocab))
     features = []
     # Generate feature for each answer
     logger.info("\tGenerating features ...")
@@ -112,8 +119,6 @@ def gen_bow_for_records(records, pos_ans, ngram, path_save_token):
         features.append('{aid}\t{qid}\t{score}\t{fea}\n'.format(aid=ans_id, qid=que_id, score=score, fea=fea))
     return features, vocab
 
-
-    
 if __name__ == '__main__':
     import doctest
     doctest.testmod(verbose=True)
