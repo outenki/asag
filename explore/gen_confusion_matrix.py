@@ -24,7 +24,7 @@ for qid in QUE_ID:
         print('Skip %s which doesn\'t exist' % file_pred)
         continue
     file_cm = '%s/cm.txt' % path_q
-    mat_true_pred = np.loadtxt(file_pred, skiprows=1, delimiter='\t')[:, [2, 3]].astype(int)
+    mat_true_pred = np.loadtxt(file_pred, skiprows=0, delimiter='\t')[:, [2, 3]].astype(int)
     true, pred = mat_true_pred[:, 0], mat_true_pred[:, 1]
     cm = conf_mat(true, pred)
     print(cm)

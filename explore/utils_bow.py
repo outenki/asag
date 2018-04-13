@@ -1,9 +1,7 @@
-import operator
 import numpy as np
-import utils
+import utils_asag as U
 import spacy
 import logging
-import pickle
 logger = logging.getLogger(__name__)
 NLP = spacy.load('en')
 POS_AID = 0
@@ -55,7 +53,7 @@ def generate_bow_feature_from_text(nlp, vocab, text, ngram):
     '''
     # tokenize text
     bow = np.zeros(len(vocab))
-    tokens = utils.tokenize(nlp, text, rm_punct=True, ngram=ngram)
+    tokens = U.tokenize(nlp, text, rm_punct=True, ngram=ngram)
     for t in tokens:
         bow[vocab[t]] = 1
     return bow
@@ -102,7 +100,7 @@ def gen_bow_for_records(records, pos_ans, ngram, path_save_token, vocab_size):
     token_list = []
     for items in records:
         ans = items[pos_ans]
-        nt = utils.tokenize(NLP, text=ans, rm_punct=True, ngram=ngram)
+        nt = U.tokenize(NLP, text=ans, rm_punct=True, ngram=ngram)
         token_list.append(nt)
     vocab = vocab_from_tokens(token_list, path_save_token, vocab_size)
     logger.info("\tVocab_size: %d", vocab_size)
@@ -115,8 +113,9 @@ def gen_bow_for_records(records, pos_ans, ngram, path_save_token, vocab_size):
         ans_id = items[POS_AID]
         que_id = items[POS_QID]
         score = items[POS_SCORE]
+        answer = items[pos_ans]
         fea = ','.join(generate_bow_feature_from_tokens(vocab, token).astype(str))
-        features.append('{aid}\t{qid}\t{score}\t{fea}\n'.format(aid=ans_id, qid=que_id, score=score, fea=fea))
+        features.append('{aid}\t{qid}\t{score}\t{fea}\t{ans}\n'.format(aid=ans_id, qid=que_id, score=score, fea=fea, ans=answer))
     return features, vocab
 
 if __name__ == '__main__':

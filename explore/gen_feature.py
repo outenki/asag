@@ -3,9 +3,8 @@ import numpy as snp
 import argparse
 import logging
 import os
-import spacy
-from utils import cur_time, tokenize, check_c_path
-from bow import *
+from utils_asag import check_c_path
+import utils_bow as B
 import pickle
 
 from itertools import groupby
@@ -32,16 +31,17 @@ logging.basicConfig(filename='%s/gen_fea.log' % out_dir, level=logging.INFO)
 # read records from tsv file
 with open(args.input_file, 'r', encoding='utf-8') as f_tsv:
     logger.info('Reading file: %s' % args.input_file)
-    f_tsv.readline()    # The first line is titles
+    f_tsv.readline()    # The first line is title
     records = list(map(lambda line:line.split('\t'), f_tsv.readlines()))
     logger.info("\tsize of data: %d" % len(records))
+    logger.info("\te.g.: %s", '\t'.join(records[0]))
 
-    titles = 'AID\tQID\tScore\tFeature\n'
+    titles = 'AID\tQID\tScore\tFeature\tAnswer\n'
     logger.info("\tTitles: %s" % titles.strip())
 
     # sort and group records by que_id
-    records.sort(key=operator.itemgetter(POS_QID))
-    qid_records = groupby(records, key=operator.itemgetter(POS_QID))
+    records.sort(key=operator.itemgetter(B.POS_QID))
+    qid_records = groupby(records, key=operator.itemgetter(B.POS_QID))
     if int(args.que_id) < 0:
         # generate feature for everyquestion, 
         # and the output filename is created based on the que_id
@@ -50,7 +50,7 @@ with open(args.input_file, 'r', encoding='utf-8') as f_tsv:
             check_c_path(path_q)
             rec = list(rec)
             logger.info("Processing question %s" % qid)
-            features, vocab = gen_bow_for_records(rec, pos_ans=args.ans_pos, ngram=args.ngram, path_save_token=path_q, vocab_size=args.vocab_size)
+            features, vocab = B.gen_bow_for_records(rec, pos_ans=args.ans_pos, ngram=args.ngram, path_save_token=path_q, vocab_size=args.vocab_size)
             with open('%s/%s/%s.fea' % (out_dir, qid, args.fea_type), 'w') as f_out:
                 f_out.write(titles)
                 f_out.writelines(features)
@@ -64,7 +64,7 @@ with open(args.input_file, 'r', encoding='utf-8') as f_tsv:
                 check_c_path(path_q)
                 logger.info("Processing question %s" % qid)
                 logger.info("Input vocab_size: %d", qid)
-                features, vocab = gen_bow_for_records(rec, pos_ans=args.ans_pos, ngram=args.ngram, path_save_token=path_q, vocab_size=args.vocab_size)
+                features, vocab = B.gen_bow_for_records(rec, pos_ans=args.ans_pos, ngram=args.ngram, path_save_token=path_q, vocab_size=args.vocab_size)
                 with open('%s/%s/%s.fea' % (out_dir, qid, args.fea_type), 'w') as f_out:
                     f_out.write(titles)
                     f_out.writelines(features)
