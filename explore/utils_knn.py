@@ -89,20 +89,16 @@ def run_knn(file_data, f_vocab, path_out, que_id, train_ratio=0.8, training_scal
     dist = dist.astype(str)
     nn = []
     row, col = dist.shape
-    print('row, col:', row, col)
     for r in range(row):
         row_nn = []
         for c in range(col):
             idx = ind[r, c] 
-            print('idx:', idx)
             aid = data_train[idx, F.pos_aid]
-            print('aid:', aid)
             s = data_train[idx, F.pos_score]
             a = str(data_train[idx, F.pos_ans]).strip()
             d = dist[r, c]
             col_nn = '{}\t{}\t{}\t{}'.format(aid, s, d, a)
             row_nn.append(col_nn)
-        print('nn.append')
         nn.append(row_nn) 
     nn = np.array(nn)
 
@@ -114,7 +110,7 @@ def run_knn(file_data, f_vocab, path_out, que_id, train_ratio=0.8, training_scal
     f_pred = '%s/pred.txt' % path_out
     f_eval = '%s/eval.txt' % path_out
     LOGGER.info('Q{}: \tOutput pred to: {}'.format(que_id, f_pred))
-    title = 'AnswerID\tQuetionID\tScore\tAnswer\tPredict\tAbsDiff\t%s\t%s\n' % ('\t'.join(labels), ('AID\tScore\tNN\tDistance\t' * n_neighbors).rstrip())
+    title = 'AnswerID\tQuetionID\tScore\tAnswer\tPredict\tAbsDiff\t%s\t%s\n' % ('\t'.join(labels), ('AID\tScore\tDistance\tNN\t' * n_neighbors).rstrip())
     np.savetxt(f_pred, results, fmt='%s', delimiter='\t', newline='\n', header=title, footer='', comments='# ')
     LOGGER.info('Q{}: \tOutput pred to: {} DONE!'.format(que_id, f_pred))
     

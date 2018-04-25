@@ -23,6 +23,8 @@ parser.add_argument('-vs', '--vocab_size', dest='vocab_size', type=int, metavar=
 parser.add_argument('-rp', '--rm_punct', dest='rm_punct', type=bool, metavar="Flat of removal of punctuation", required=True, help="If this flag is set, punctuation will be removed before the generation of n-grams")
 parser.add_argument('-rs', '--rm_stop', dest='rm_stop', type=bool, metavar="Flag of removal of stopwords", required=True, help="If this flag is set, stop words will be removed before the generation of n-grams")
 parser.add_argument('-lm', '--lemma', dest='lemma', type=bool, metavar="Flag of lemmatization", required=True, help="If this flag is set, words will be lemmatized before the generation of n-grams")
+parser.add_argument('-tf', '--term_frequency', dest='tf', type=bool, metavar="Flag of term frequency", required=True, help="If this flag is set, tf will be used as part of weight of terms")
+parser.add_argument('-idf', '--inverse_doc_frequency', dest='idf', type=bool, metavar="Flag of inverse doc frequency", required=True, help="If this flag is set, idf will be used as part of weight of terms")
 args = parser.parse_args()
 
 out_dir = args.output_path
@@ -37,7 +39,7 @@ nlp = spacy.load('en')
 
 logger.info('Initialize Tokenizer...')
 tokenizer = Tokenizer(ngram = args.ngram, rm_punct = args.rm_punct, rm_stop = args.rm_stop, lemma = args.lemma, nlp=nlp)
-bow = BOW(tokenizer=tokenizer, voc_size = args.vocab_size) 
+bow = BOW(tokenizer=tokenizer, voc_size = args.vocab_size, tf = args.tf, idf=args.idf) 
 
 # read records from tsv file 
 with open(args.input_file, 'r', encoding='utf-8') as f_tsv:
@@ -61,12 +63,12 @@ with open(args.input_file, 'r', encoding='utf-8') as f_tsv:
             check_c_path(path_q)
             rec = list(rec)
             logger.info("Processing question %s" % qid)
-            features, vocab = bow.gen_bow_for_records(rec, ngram=args.ngram, path_save_token=path_q)
+            features = bow.gen_bow_for_records(rec, ngram=args.ngram, path_save_token=path_q)
             with open('%s/%s/%s.fea' % (out_dir, qid, args.fea_type), 'w') as f_out:
                 f_out.write(titles)
                 f_out.writelines(features)
             with open('%s/vocab' % path_q, 'wb') as f:
-                pickle.dump(vocab, f)
+                pickle.dump(bow.vocab, f)
     else:
         # only generate feature for appointed que_id
         for qid, rec in qid_records:
@@ -75,10 +77,10 @@ with open(args.input_file, 'r', encoding='utf-8') as f_tsv:
                 check_c_path(path_q)
                 logger.info("Processing question %s" % qid)
                 logger.info("Input vocab_size: %d", qid)
-                features, vocab = bow.gen_bow_for_records(rec, ngram=args.ngram, path_save_token=path_q)
+                features = bow.gen_bow_for_records(rec, ngram=args.ngram, path_save_token=path_q)
                 with open('%s/%s/%s.fea' % (out_dir, qid, args.fea_type), 'w') as f_out:
                     f_out.write(titles)
                     f_out.writelines(features)
                 with open('%s/vocab' % path_q, 'wb') as f:
-                    pickle.dump(vocab, f)
+                    pickle.dump(bow.vocab, f)
     logger.info("Done!")

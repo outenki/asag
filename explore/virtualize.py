@@ -19,7 +19,7 @@ title, ext = os.path.splitext(fname)
 # Generate weights for words
 print(ARGS.weight)
 weights = np.loadtxt(ARGS.weight, dtype=str, delimiter='\t')
-rm_list = ['(', ')', "'", ' ']
+rm_list = ['(', ')', "'", ' ', '"']
 token_weights = dict()
 for tokens, weight in weights:
     for t in rm_list:
