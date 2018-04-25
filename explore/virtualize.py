@@ -17,6 +17,7 @@ path, fname = os.path.split(ARGS.pred)
 title, ext = os.path.splitext(fname)
 
 # Generate weights for words
+print(ARGS.weight)
 weights = np.loadtxt(ARGS.weight, dtype=str, delimiter='\t')
 rm_list = ['(', ')', "'", ' ']
 token_weights = dict()
@@ -31,7 +32,7 @@ word_weights = UA.gen_word_weights(token_weights)
 pred = np.loadtxt(ARGS.pred, dtype=str, delimiter='\t')
 # sort by diff
 pred = np.array(sorted(pred, key=lambda r:float(r[-1]), reverse=True))
-html = UA.genertate_weight_html_pred(NLP, pred, word_weights, title) 
+html = UA.genertate_weight_html_pred(pred, word_weights, title, NLP, lemma=True) 
 
 with open('%s/%s.html' % (path, title), 'w') as fh:
     fh.write(html)

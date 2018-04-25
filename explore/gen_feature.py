@@ -1,10 +1,12 @@
 import operator
-import numpy as snp
 import argparse
 import logging
 import os
-from utils_asag import check_c_path
-import utils_bow as B
+import spacy
+from utils_asag import check_c_path, Tokenizer
+from utils_bow import BOW
+# import utils_bow as B
+import data_format as D
 import pickle
 
 from itertools import groupby
@@ -15,9 +17,12 @@ parser.add_argument('-n', '--ngram', dest='ngram', type=int, metavar='N-gram bow
 parser.add_argument('-q', '--question', dest='que_id', type=int, metavar='Question ID', required=True, help="Question id or prompt id. If it is set, only features for answers to the specific question will be generated. If it i set to minus, features will be generated for each question.")
 parser.add_argument('-o', '--output_path', dest='output_path', type=str, metavar='Output Path', required=True, help="Path to store generated feature files")
 parser.add_argument('-i', '--input_file', dest='input_file', type=str, metavar='Input TSV file', required=True, help="TSV file of raw data. ans_id, que_id, raw data etc. are expected in this file")
-parser.add_argument('-ap', '--ans_pos', dest='ans_pos', type=int, metavar="Position of answer in each row", required=True, help="Position of answer in each row. Starts from 0")
+# parser.add_argument('-ap', '--ans_pos', dest='ans_pos', type=int, metavar="Position of answer in each row", required=True, help="Position of answer in each row. Starts from 0")
 parser.add_argument('-vf', '--vocab_file', dest='vocab_file', type=str, metavar="Pregenerated vocabulary pickle file", required=False, default='', help="If this parameter is not none, the program will try to read the pickle file to load the vocabulary. If the file doesn't exist, the vocabulary will be created based on the input file and write to the appointed pickel file.")
 parser.add_argument('-vs', '--vocab_size', dest='vocab_size', type=int, metavar="Size of vocabulary", required=True, help="If 0 is set, all the tokens will be counted in as vocabulary.")
+parser.add_argument('-rp', '--rm_punct', dest='rm_punct', type=bool, metavar="Flat of removal of punctuation", required=True, help="If this flag is set, punctuation will be removed before the generation of n-grams")
+parser.add_argument('-rs', '--rm_stop', dest='rm_stop', type=bool, metavar="Flag of removal of stopwords", required=True, help="If this flag is set, stop words will be removed before the generation of n-grams")
+parser.add_argument('-lm', '--lemma', dest='lemma', type=bool, metavar="Flag of lemmatization", required=True, help="If this flag is set, words will be lemmatized before the generation of n-grams")
 args = parser.parse_args()
 
 out_dir = args.output_path
@@ -27,8 +32,14 @@ if not os.path.exists(out_dir):
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename='%s/gen_fea.log' % out_dir, level=logging.INFO)
 
+logger.info('Loading spacy.en...')
+nlp = spacy.load('en')
 
-# read records from tsv file
+logger.info('Initialize Tokenizer...')
+tokenizer = Tokenizer(ngram = args.ngram, rm_punct = args.rm_punct, rm_stop = args.rm_stop, lemma = args.lemma, nlp=nlp)
+bow = BOW(tokenizer=tokenizer, voc_size = args.vocab_size) 
+
+# read records from tsv file 
 with open(args.input_file, 'r', encoding='utf-8') as f_tsv:
     logger.info('Reading file: %s' % args.input_file)
     f_tsv.readline()    # The first line is title
@@ -40,8 +51,8 @@ with open(args.input_file, 'r', encoding='utf-8') as f_tsv:
     logger.info("\tTitles: %s" % titles.strip())
 
     # sort and group records by que_id
-    records.sort(key=operator.itemgetter(B.POS_QID))
-    qid_records = groupby(records, key=operator.itemgetter(B.POS_QID))
+    records.sort(key=operator.itemgetter(D.pos_qid))
+    qid_records = groupby(records, key=operator.itemgetter(D.pos_qid))
     if int(args.que_id) < 0:
         # generate feature for everyquestion, 
         # and the output filename is created based on the que_id
@@ -50,7 +61,7 @@ with open(args.input_file, 'r', encoding='utf-8') as f_tsv:
             check_c_path(path_q)
             rec = list(rec)
             logger.info("Processing question %s" % qid)
-            features, vocab = B.gen_bow_for_records(rec, pos_ans=args.ans_pos, ngram=args.ngram, path_save_token=path_q, vocab_size=args.vocab_size)
+            features, vocab = bow.gen_bow_for_records(rec, ngram=args.ngram, path_save_token=path_q)
             with open('%s/%s/%s.fea' % (out_dir, qid, args.fea_type), 'w') as f_out:
                 f_out.write(titles)
                 f_out.writelines(features)
@@ -64,7 +75,7 @@ with open(args.input_file, 'r', encoding='utf-8') as f_tsv:
                 check_c_path(path_q)
                 logger.info("Processing question %s" % qid)
                 logger.info("Input vocab_size: %d", qid)
-                features, vocab = B.gen_bow_for_records(rec, pos_ans=args.ans_pos, ngram=args.ngram, path_save_token=path_q, vocab_size=args.vocab_size)
+                features, vocab = bow.gen_bow_for_records(rec, ngram=args.ngram, path_save_token=path_q)
                 with open('%s/%s/%s.fea' % (out_dir, qid, args.fea_type), 'w') as f_out:
                     f_out.write(titles)
                     f_out.writelines(features)

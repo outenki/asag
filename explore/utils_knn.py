@@ -12,13 +12,14 @@ plt.switch_backend('agg')
 
 import logging
 from eva import RMSE, weightedF1, QWK, conf_mat, plot_confusion_matrix
-from sklearn.svm import SVR, SVC
+from sklearn.neighbors import KNeighborsClassifier
 import numpy as np
 import operator
+import feature_format as F
 
 LOGGER = logging.getLogger(__name__)
 
-def run_svm(kernel, file_data, f_vocab, path_out, que_id, train_ratio=0.8, rint=True, training_scale=0, epsilon=0.1, penalty=1.0, normalize=False, classify=False):
+def run_knn(file_data, f_vocab, path_out, que_id, train_ratio=0.8, training_scale=0, n_neighbors=0, weights='distance', algorithm='auto'):
     '''
     Run SVR on feature-value data.
     1. Rread in data from file_data (TSV file)
@@ -29,7 +30,7 @@ def run_svm(kernel, file_data, f_vocab, path_out, que_id, train_ratio=0.8, rint=
     LOGGER.info("processing %s" % que_id)
     path_out = '%s/%s' % (path_out, que_id)
     check_c_path(path_out)
-    model_name = 'SVC' if classify else 'SVR'
+    model_name = 'KNN'
 
     # read vocab pickle file
     LOGGER.info('Q{}: Reading vocab file ...'.format(que_id))
@@ -54,87 +55,83 @@ def run_svm(kernel, file_data, f_vocab, path_out, que_id, train_ratio=0.8, rint=
     print('scale of data_train:', scale)
     if training_scale > 0:
         scale = training_scale
-    X = np.array(list(map(lambda r:r.split(','), data_train[:,3]))).astype(float)[:scale]
-    print('X:', X[2])
-    y = data_train[:,2][:scale].astype(float)
-    print('Y:', y[2])
+    X = np.array(list(map(lambda r:r.split(','), data_train[:,F.pos_fea]))).astype(float)[:scale]
+    y = np.rint(data_train[:,F.pos_score][:scale].astype(float))
 
     LOGGER.info('Q{}:Initialize {} ...'.format(que_id, model_name))
-    if classify:
-        y = np.rint(y)
-        y[y>=1] = 1 # convert the labels to 0/1
-        model = SVC(C=penalty, kernel=kernel)
-    else:
-        model = SVR(C=penalty, epsilon=epsilon, kernel=kernel)
+    model = KNeighborsClassifier(n_neighbors=n_neighbors, weights=weights, algorithm = algorithm)
 
     LOGGER.info('Q{}: Training {} ...'.format(que_id, model_name))
     LOGGER.info('Q{}: Training scale: {}'.format(que_id, len(X)))
-    print('p:', penalty)
-    print('e:', epsilon)
-    print('k:', kernel)
 
     # Train
     model.fit(X, y)
 
-    print(X.shape)
-    print(y.shape)
     # get features from test data
-    LOGGER.info('Q{}: Predicting test data ...'.format(que_id))
-    X = np.array(list(map(lambda r:r.split(','), data_test[:,3]))).astype(float)
-    ans = data_test[:,4]
+    X = np.array(list(map(lambda r:r.split(','), data_test[:,F.pos_fea]))).astype(float)
+    ans = data_test[:,F.pos_ans]
     LOGGER.info('Q{}: Answers[:3]: {}'.format(que_id, ans[:3]))
 
     # Test
-    y = model.predict(X)
-    score = data_test[:,2].astype(float)
-    if classify:
-        score[score>0] = 1
-    if normalize:
-        v_max, v_min = max(score), min(score)
-        y = y.clip(v_min, v_max)
-    abs_diff = np.abs(y - score)
-    results = np.column_stack((data_test[:,[0,1]],score, ans, y.astype(str), abs_diff.astype(str)))
+    LOGGER.info('Q{}: Predicting test data ...'.format(que_id))
+    pred = model.predict(X)
+    score = data_test[:,F.pos_score].astype(float)
+    abs_diff = np.abs(pred - score)
 
-    # read weights of each n-gram token
-    weight_token = model.coef_
-    LOGGER.info('Q{}: Weights :{}'.format(que_id, weight_token.astype(str)))
-    item_weight = list(zip(tokens, weight_token[0]))
+    # Probabilities
+    LOGGER.info('Q{}: Computing probabilities ...'.format(que_id))
+    labels = sorted(list(set(y.astype(str))))
+    prob = model.predict_proba(X)
+
+    # Nearest Neighbors
+    LOGGER.info('Q{}: Collecting NN ...'.format(que_id))
+    dist, ind = model.kneighbors(X, n_neighbors, True)
+    dist = dist.astype(str)
+    nn = []
+    row, col = dist.shape
+    print('row, col:', row, col)
+    for r in range(row):
+        row_nn = []
+        for c in range(col):
+            idx = ind[r, c] 
+            print('idx:', idx)
+            aid = data_train[idx, F.pos_aid]
+            print('aid:', aid)
+            s = data_train[idx, F.pos_score]
+            a = str(data_train[idx, F.pos_ans]).strip()
+            d = dist[r, c]
+            col_nn = '{}\t{}\t{}\t{}'.format(aid, s, d, a)
+            row_nn.append(col_nn)
+        print('nn.append')
+        nn.append(row_nn) 
+    nn = np.array(nn)
+
+    LOGGER.info('Q{}: Generating report ...'.format(que_id))
+    aid_qid = data_test[:,[F.pos_aid, F.pos_qid]] 
+    results = np.column_stack((aid_qid, score, ans, pred.astype(str), abs_diff.astype(str), prob, nn))
 
     LOGGER.info('Q{}: Output results ...'.format(que_id))
     f_pred = '%s/pred.txt' % path_out
-    f_weight = '%s/weight.txt' % path_out
     f_eval = '%s/eval.txt' % path_out
     LOGGER.info('Q{}: \tOutput pred to: {}'.format(que_id, f_pred))
-    title = 'AnswerID\tQuetionID\tScore\tAnswer\tPredict\tAbsDiff\n'
+    title = 'AnswerID\tQuetionID\tScore\tAnswer\tPredict\tAbsDiff\t%s\t%s\n' % ('\t'.join(labels), ('AID\tScore\tNN\tDistance\t' * n_neighbors).rstrip())
     np.savetxt(f_pred, results, fmt='%s', delimiter='\t', newline='\n', header=title, footer='', comments='# ')
     LOGGER.info('Q{}: \tOutput pred to: {} DONE!'.format(que_id, f_pred))
-    LOGGER.info('Q{}: \tOutput weights to: {}'.format(que_id, f_weight))
-    title = 'Token\tWeight\n'
-    np.savetxt(f_weight, item_weight, fmt='%s', delimiter='\t', newline='\n', header=title, footer='', comments='# ')
-    LOGGER.info('Q{}: \tOutput weights to: {} DONE!'.format(que_id, f_weight))
     
     # Evaluation with RMSE, QWK and wF1 score
     LOGGER.info('Q{}: \tOutput evaluation to: {}'.format(que_id, f_eval))
     score_float = data_test[:,2].astype(float)
-    pred_float = y
-    if rint:
-        score_int = np.rint(score_float)
-        if classify:
-            score_int[score_int>0] = 1  # convert the gold label for evaluation of SVC
-        pred_int = np.rint(y)
-    else:
-        score_int = score_float.astype(int)
-        pred_int = y.astype(int)
+    pred_float = pred.astype(float)
 
-    LOGGER.info('Q{}: \tTrue labels: {}'.format(que_id, set(score_int)))
-    LOGGER.info('Q{}: \tPredicted labels: {}'.format(que_id, set(pred_int)))
+    LOGGER.info('Q{}: \tTrue labels: {}'.format(que_id, set(score)))
+    LOGGER.info('Q{}: \tPredicted labels: {}'.format(que_id, set(pred)))
 
     # Generate confusion matrix
     LOGGER.info('Q{}: \tGenerating confusion matrix'.format(que_id))
-    cm = conf_mat(score_int, pred_int)
+    cm = conf_mat(score, pred)
     f_cm = '%s/cm.txt' % path_out
     np.savetxt(f_cm, cm, fmt='%d', delimiter='\t')
-    classes = list(range(int(np.max(score_int))+1))
+    classes = list(range(int(np.max(score))+1))
     save_path = '%s/cm.png' % path_out
     LOGGER.info('Q{}: \tConfusion_matrix: {}'.format(que_id, save_path))
     plot_confusion_matrix(cm, classes, save_path, normalize=False,
@@ -144,13 +141,12 @@ def run_svm(kernel, file_data, f_vocab, path_out, que_id, train_ratio=0.8, rint=
     plot_confusion_matrix(cm, classes, save_path, normalize=True, 
                           title='Confusion matrix', cmap=plt.cm.Blues)
 
-
-
+    LOGGER.info('Q{}: \tEvaluating ...'.format(que_id))
     rmse = RMSE(score_float, pred_float)
     LOGGER.info('Q{}: \trmse: {}'.format(que_id, rmse))
-    qwk = QWK(score_int, pred_int)
+    qwk = QWK(score, pred)
     LOGGER.info('Q{}: \tqwk: {}'.format(que_id, qwk))
-    wf1 = weightedF1(score_int, pred_int)
+    wf1 = weightedF1(score, pred)
     LOGGER.info('Q{}: \twf1: {}'.format(que_id, wf1))
     LOGGER.info('Q{}: QWK: {}, RMSE: {}, wF1: {}'.format(que_id, qwk, rmse, wf1))
     with open(f_eval, 'w') as fe:
@@ -159,19 +155,13 @@ def run_svm(kernel, file_data, f_vocab, path_out, que_id, train_ratio=0.8, rint=
         fe.write('wF1\t {}\n'.format(wf1))
     LOGGER.info('Q{}: Done.'.format(que_id))
 
-
-# def run_svc_svr(kernel, file_data, f_vocab, path_out, que_id, train_ratio=0.8, rint=True, training_scale=0, epsilon=0.1, penalty=1.0, normalize=False):
-def run_svr_on_list(qids, feature_path, feature_name, vocab_name, kernel, path_out, train_ratio,
-        rint, training_scale, epsilon, penalty, normalize, classify):
+def run_knn_on_list(qids, feature_path, feature_name, vocab_name, path_out, train_ratio, training_scale, n_neighbors, weight, algorithm):
     for qid in qids:
         if not os.path.isdir('%s/%s' % (feature_path, qid)):
             LOGGER.info('Q{}/{} is not dir. Skip it.'.format(feature_path, qid))
             continue
         file_data = '%s/%s/%s' % (feature_path, qid, feature_name)
         file_vocab = '%s/%s/%s' % (feature_path, qid, vocab_name)
-        # def run_svr(kernel, file_data, f_vocab, path_out, que_id, train_ratio=0.8, 
-        #               rint=True, training_scale=0, epsilon=0.1, penalty=1.0, normalize=False):
-        # def run_svr(kernel, file_data, f_vocab, path_out, que_id, train_ratio=0.8, rint=True, 
-        #               training_scale=0, epsilon=0.1, penalty=1.0, normalize=False):
-        run_svm(kernel, file_data, file_vocab, path_out, qid, train_ratio, rint, training_scale, epsilon, penalty, normalize, classify)
-        
+        run_knn(file_data = file_data, f_vocab = file_vocab, path_out = path_out, que_id = qid,
+                train_ratio = train_ratio, training_scale = training_scale, n_neighbors=n_neighbors,
+                weights=weight, algorithm=algorithm)
