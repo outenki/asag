@@ -3,6 +3,7 @@ import argparse
 import logging
 import os
 import spacy
+import utils_basic as UB
 from utils_asag import check_c_path, Tokenizer
 from utils_bow import BOW
 # import utils_bow as B
@@ -20,11 +21,11 @@ parser.add_argument('-i', '--input_file', dest='input_file', type=str, metavar='
 # parser.add_argument('-ap', '--ans_pos', dest='ans_pos', type=int, metavar="Position of answer in each row", required=True, help="Position of answer in each row. Starts from 0")
 parser.add_argument('-vf', '--vocab_file', dest='vocab_file', type=str, metavar="Pregenerated vocabulary pickle file", required=False, default='', help="If this parameter is not none, the program will try to read the pickle file to load the vocabulary. If the file doesn't exist, the vocabulary will be created based on the input file and write to the appointed pickel file.")
 parser.add_argument('-vs', '--vocab_size', dest='vocab_size', type=int, metavar="Size of vocabulary", required=True, help="If 0 is set, all the tokens will be counted in as vocabulary.")
-parser.add_argument('-rp', '--rm_punct', dest='rm_punct', type=bool, metavar="Flat of removal of punctuation", required=True, help="If this flag is set, punctuation will be removed before the generation of n-grams")
-parser.add_argument('-rs', '--rm_stop', dest='rm_stop', type=bool, metavar="Flag of removal of stopwords", required=True, help="If this flag is set, stop words will be removed before the generation of n-grams")
-parser.add_argument('-lm', '--lemma', dest='lemma', type=bool, metavar="Flag of lemmatization", required=True, help="If this flag is set, words will be lemmatized before the generation of n-grams")
-parser.add_argument('-tf', '--term_frequency', dest='tf', type=bool, metavar="Flag of term frequency", required=True, help="If this flag is set, tf will be used as part of weight of terms")
-parser.add_argument('-idf', '--inverse_doc_frequency', dest='idf', type=bool, metavar="Flag of inverse doc frequency", required=True, help="If this flag is set, idf will be used as part of weight of terms")
+parser.add_argument('-rp', '--rm_punct', dest='rm_punct', type=UB.str2bool, metavar="Flat of removal of punctuation", required=True, help="If this flag is set, punctuation will be removed before the generation of n-grams")
+parser.add_argument('-rs', '--rm_stop', dest='rm_stop', type=UB.str2bool, metavar="Flag of removal of stopwords", required=True, help="If this flag is set, stop words will be removed before the generation of n-grams")
+parser.add_argument('-lm', '--lemma', dest='lemma', type=UB.str2bool, metavar="Flag of lemmatization", required=True, help="If this flag is set, words will be lemmatized before the generation of n-grams")
+parser.add_argument('-tf', '--term_frequency', dest='tf', type=UB.str2bool, metavar="Flag of term frequency", required=True, help="If this flag is set, tf will be used as part of weight of terms")
+parser.add_argument('-idf', '--inverse_doc_frequency', dest='idf', type=UB.str2bool, metavar="Flag of inverse doc frequency", required=True, help="If this flag is set, idf will be used as part of weight of terms")
 args = parser.parse_args()
 
 out_dir = args.output_path
@@ -38,6 +39,7 @@ logger.info('Loading spacy.en...')
 nlp = spacy.load('en')
 
 logger.info('Initialize Tokenizer...')
+
 tokenizer = Tokenizer(ngram = args.ngram, rm_punct = args.rm_punct, rm_stop = args.rm_stop, lemma = args.lemma, nlp=nlp)
 bow = BOW(tokenizer=tokenizer, voc_size = args.vocab_size, tf = args.tf, idf=args.idf) 
 
@@ -63,6 +65,7 @@ with open(args.input_file, 'r', encoding='utf-8') as f_tsv:
             check_c_path(path_q)
             rec = list(rec)
             logger.info("Processing question %s" % qid)
+            print("Processing question %s" % qid)
             features = bow.gen_bow_for_records(rec, ngram=args.ngram, path_save_token=path_q)
             with open('%s/%s/%s.fea' % (out_dir, qid, args.fea_type), 'w') as f_out:
                 f_out.write(titles)

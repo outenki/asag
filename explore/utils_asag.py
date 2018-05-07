@@ -66,7 +66,9 @@ def generate_training_test_data_f(fn, train_ratio=0.8):
     :param train_ratio: Ratio of training data. 0.8 as default.
     :return: Training data and test data in form of `AID\tQID\tSCORE\tFEATURE\tANSWER`
     '''
+    print('loading text...', end='')
     data = np.loadtxt(fn, skiprows=1, dtype=str, delimiter='\t')
+    print('loading text...')
     # with open(fn, 'r') as f_data:
     #     f_data.readline()
     #     data = np.array(f_data.readlines())

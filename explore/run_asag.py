@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 plt.switch_backend('agg')
 
 import utils_asag as U
+import utils_basic as UB
 import logging
 import utils_svm as US
 import utils_knn as UK
@@ -25,10 +26,10 @@ PARSER.add_argument('-e', '--svr_epsilon', dest='svr_epsilon', type=float, metav
 PARSER.add_argument('-o', '--output', dest='path_out', type=str, metavar="Output Path", required=True, help="Path to output") 
 PARSER.add_argument('-m', '--multiprocess', dest='multi_proc', type=int, metavar='Multi Processing', required=True, help='Number of multiprocessing')
 PARSER.add_argument('-tr', '--train_ratio', dest='train_ratio', type=float, metavar='Train Ratio', required=False, default=0.8, help='Ratio of traing data. 0.8 as default, meaning 80%% of data will be used as training data')
-PARSER.add_argument('-nm', '--normalize', dest='normalize', type=bool, metavar='Normalize', required=False, default=True, help='Flat if clip the predicted labels. If TRUE is set, the predicted labels will be normalized to a range form true_label_min to true_label_max. Set as TRUE as default')
-PARSER.add_argument('-ri', '--rint', dest='rint', type=bool, metavar='Rounded Int', required=False, default=True, help='The way to convert float pred to int labels. If TRUE is set, np.rint will be used instead of np.astype(int). True as default.')
+PARSER.add_argument('-nm', '--normalize', dest='normalize', type=UB.str2bool, metavar='Normalize', required=False, default=True, help='Flat if clip the predicted labels. If TRUE is set, the predicted labels will be normalized to a range form true_label_min to true_label_max. Set as TRUE as default')
+PARSER.add_argument('-ri', '--rint', dest='rint', type=UB.str2bool, metavar='Rounded Int', required=False, default=True, help='The way to convert float pred to int labels. If TRUE is set, np.rint will be used instead of np.astype(int). True as default.')
 PARSER.add_argument('-ts', '--training_scale', dest='training_scale', type=int, metavar='Training Scale ', required=False, default=0, help='Training scale. 0 as default, that all the training data will be used.')
-PARSER.add_argument('-sc', '--SVC', dest='svc', type=bool, metavar='SVM Classify', required=False, default=False, help='If set as False (default), SVR will be applied. 2 ways SVC will be applied otherwise')
+PARSER.add_argument('-sc', '--SVC', dest='svc', type=UB.str2bool, metavar='SVM Classify', required=False, default=False, help='If set as False (default), SVR will be applied. 2 ways SVC will be applied otherwise')
 
 PARSER.add_argument('-mo', '--model', dest='model', type=str, metavar='Model', required=True, help='Type of model. (svr|knn)')
 PARSER.add_argument('-kw', '--knn_weight', dest='knn_weight', type=str, metavar='KNN Weight Model', required=False, help='Parameter for kNN: Weight model of KNN. (uniform|distance)')
