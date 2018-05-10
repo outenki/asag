@@ -33,16 +33,23 @@ def run_svm(kernel, file_data, f_vocab, path_out, que_id, train_ratio=0.8, rint=
 
     # read vocab pickle file
     LOGGER.info('Q{}: Reading vocab file ...'.format(que_id))
-    with open(f_vocab, 'rb') as fv:
-        vocab = pickle.load(fv)
-    LOGGER.info('Q{}: Reading vocab file ... DONE'.format(que_id))
-    items = sorted(vocab.items(), key=operator.itemgetter(1))
-    tokens = list(zip(*items))[0]
-    LOGGER.info('Q{}: Size of vocab : {}'.format(que_id, len(items)))
-    with open('{}/tokens'.format(path_out), 'w') as ft:
-        for t in tokens:
-            ft.write('{}\n'.format(t))
-    LOGGER.info('Q{}: Tokens :{}'.format(que_id, tokens[:10]))
+    tokens = ['num_char', 'num_words', 'num_commas', 'num_apost', 'num_ending_punct', 'len_word_avg', 'num_bad_pos', 'prop_bad_pos', 'num_words_in_prompt', 'prop_words_in_prompt', 'num_synonym', 'prop_synonym', 'count_1_2_gram_unstemmed', 'count_1_2_gram_stemmed']
+
+    if os.path.exists(f_vocab):
+        try:
+            with open(f_vocab, 'rb') as fv:
+                vocab = pickle.load(fv)
+            LOGGER.info('Q{}: Reading vocab file ... DONE'.format(que_id))
+            items = sorted(vocab.items(), key=operator.itemgetter(1))
+            tokens = list(zip(*items))[0]
+            LOGGER.info('Q{}: Size of vocab : {}'.format(que_id, len(items)))
+            with open('{}/tokens'.format(path_out), 'w') as ft:
+                for t in tokens:
+                    ft.write('{}\n'.format(t))
+            LOGGER.info('Q{}: Tokens :{}'.format(que_id, tokens[:10]))
+        except:
+            print("Failed to read tokens from vocab file!")
+            LOGGER.info('Q{}: Failed to read tokens from vocab file!'.format(que_id))
 
     LOGGER.info('Q{}: Initialize training data and test data from {} ...'.format(que_id, file_data))
     print('to generate training test data: %s' % file_data)
@@ -95,7 +102,7 @@ def run_svm(kernel, file_data, f_vocab, path_out, que_id, train_ratio=0.8, rint=
     abs_diff = np.abs(y - score)
     results = np.column_stack((data_test[:,[0,1]],score, ans, y.astype(str), abs_diff.astype(str)))
 
-    # read weights of each n-gram token
+    # read weights of features
     weight_token = model.coef_
     LOGGER.info('Q{}: Weights :{}'.format(que_id, weight_token.astype(str)))
     item_weight = list(zip(tokens, weight_token[0]))

@@ -31,7 +31,7 @@ class Tokenizer:
         '''
         self.rm_punct, self.ngram, self.rm_stop, self.lemma, self.nlp  = rm_punct, ngram, rm_stop, lemma, nlp
 
-    def tokenize(self, text):
+    def ngram_words(self, text):
         '''
         Tokenize the input text.
         1. Lower all the characters.

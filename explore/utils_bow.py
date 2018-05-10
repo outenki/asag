@@ -8,15 +8,14 @@ NLP = spacy.load('en')
 
 
 class BOW:
-    def __init__(self, pos_aid=D.pos_aid, pos_qid=D.pos_qid, pos_score=D.pos_score, pos_ans=D.pos_ans, tf=False, idf=False, voc_size=0, tokenizer=None):
+    def __init__(self, pos_id=D.ans_pos_id, pos_qid=D.ans_pos_qid, pos_score=D.ans_pos_score, pos_ans=D.ans_pos_ans, tf=False, idf=False, voc_size=0, tokenizer=None):
         '''
         Initialize parameters for BOW class.
-        :param pos_*: position of answer_id(aid), question_id(qid) and score in the input file.
-        :param size: size of vocab. All the tokens will be counted in if 0 is set.
+        :param pos_*: position of answer_id(aid), question_id(qid) and score in the input file.  :param size: size of vocab. All the tokens will be counted in if 0 is set.
         :param tf: If tf is True, then term frequency will be calculated and be used as a part of weight of term
         :param idf: If idf is True, then inverse document frequency will be calculated and be used as a part of weight of term
         '''
-        self.pos_aid, self.pos_qid, self.pos_score, self.pos_ans, self.voc_size = pos_aid, pos_qid, pos_score, pos_ans, voc_size
+        self.pos_id, self.pos_qid, self.pos_score, self.pos_ans, self.voc_size = pos_id, pos_qid, pos_score, pos_ans, voc_size
         self.tokenizer = tokenizer
         self.tf, self.idf = tf, idf
 
@@ -87,7 +86,7 @@ class BOW:
 #         bow[vocab[t]] = 1
 #     return bow
 
-    def generate_bow_feature_from_tokens(self, tokens):
+    def generate_feature_from_tokens(self, tokens):
         '''
         Generate ngram bow feature vector for tokenized text
         :param vocab: Dict with token tuple as key and index as value
@@ -114,7 +113,7 @@ class BOW:
                 bow[self.vocab[t]] = weight
         return bow
 
-    def gen_bow_for_records(self, records, ngram, path_save_token):
+    def gen_fea_for_records(self, records, path_save_token, que=''):
         '''
         Generate feature for answers to a question from a list of records.
         The records are expected to be a list starting with: [AnswerId, QuestionId, Score, ...]
@@ -126,7 +125,6 @@ class BOW:
             3.3 Set featue values as 0 or 1 in an array
         :param records: A list of records read from a tsv file.
         :param ans_pos: Appoint the position of answer in the record.
-        :param ngram: Generate n-gram bow feature
         :param vocab_size: Size of vocabulary that will be generated. 
                         All the tokens will be counted in when 0 is set.
         :return:
@@ -137,7 +135,7 @@ class BOW:
         logger.info("Generating vocab ...")
         token_list = []
         for items in records:
-            ans = items[self.pos_ans]
+            ans = items[self.ans_pos_ans]
             nt = self.tokenizer.tokenize(text=ans)
             token_list.append(nt)
         self.vocab_from_tokens(token_list, path_save_token)
@@ -148,11 +146,11 @@ class BOW:
         logger.info("\tGenerating features ...\n")
         # for aid, qid, sco, t in zip(ans_ids, que_ids, scores, token_list):
         for items, token in zip(records, token_list):
-            ans_id = items[self.pos_aid]
-            que_id = items[self.pos_qid]
-            score = items[self.pos_score]
-            answer = items[self.pos_ans]
-            fea = ','.join(self.generate_bow_feature_from_tokens(token).astype(str))
+            ans_id = items[self.ans_pos_id]
+            que_id = items[self.ans_pos_qid]
+            score = items[self.ans_pos_score]
+            answer = items[self.ans_pos_ans]
+            fea = ','.join(self.generate_feature_from_tokens(token).astype(str))
             features.append('{aid}\t{qid}\t{score}\t{fea}\t{ans}\t{token}\n'.format(aid=ans_id, qid=que_id, score=score, fea=fea, ans=answer.strip(), token=token))
         return features
 
