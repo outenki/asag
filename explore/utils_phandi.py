@@ -1,5 +1,5 @@
 '''
-Generate features proposed from Pandi et al, 2015
+Generate features proposed from Phandi et al, 2015
 FeatureType         Description
 ------------------------------------------
 Length              Number of characters
@@ -25,20 +25,46 @@ import numpy as np
 import spacy
 import logging
 import data_format as D
+from scipy import stats
+from utils_asag import Tokenizer
 logger = logging.getLogger(__name__)
-NLP = spacy.load('en')
+
+class Vocab:
+    '''
+    Generate unigram and bigram for an answer
+    '''
+    unigram_unstemmed = list()
+    bigram_unstemmed = list()
+    unigram_stemmed= list()
+    bigram_stemmed= list()
+    prompt_id = 0
+    ans_id = 0
+    score = 0
+    def __init__(self, aid, qid, score, text, nlp):
+        self.ans_id, self.prompt_id, self.score = aid, qid, score
+        tokenizer = Tokenizer(ngram=1, rm_punct=False, rm_stop=False, lemma=False, nlp=nlp)
+        self.unigram_unstemmed = tokenizer.ngram_words(text)
+        tokenizer.ngram = 2
+        self.bigram_unstemmed = tokenizer.ngram_words(text)
+        tokenizer.lemma = True
+        self.bigram_stemmed= tokenizer.ngram_words(text)
+        tokenizer.ngram = 1
+        self.unigram_stemmed= tokenizer.ngram_words(text)
 
 
-class Pandi:
-    def __init__(self, pos_aid=D.ans_pos_id, pos_qid=D.ans_pos_qid, pos_score=D.ans_pos_score, pos_ans=D.ans_pos_ans, pos_que=D.que_pos_que, tokenizer=None, synonym_threshold = 0.7):
+
+class Phandi:
+    def __init__(self, pos_aid=D.ans_pos_id, pos_qid=D.ans_pos_qid, pos_score=D.ans_pos_score, pos_ans=D.ans_pos_ans, pos_que=D.que_pos_que, nlp=None, tokenizer=None, synonym_threshold = 0.7, save_path = ''):
         '''
         Initialize parameters for BOW class.
         :param pos_*: position of answer_id(aid), question_id(qid) and score in the input file.
         '''
         self.pos_aid, self.pos_qid, self.pos_score, self.pos_ans, self.pos_que = pos_aid, pos_qid, pos_score, pos_ans, pos_que
         self.tokenizer = tokenizer
+        self.nlp = nlp
 
         self.ending_punct = {'.', '!', '?' }
+        self.save_path = save_path
 
     def vocab_from_tokens(self, tokens_list, save_path):
         '''
@@ -89,7 +115,7 @@ class Pandi:
 
         self.vocab = {item[0]:idx for (idx, item) in enumerate(vocab_sorted)}
 
-    def generate_fea_for_tokens(self, tokens_ans, tokens_prompt):
+    def generate_fea_for_tokens(self, tokens_ans, tokens_prompt, vocab, useful_ngrams):
         '''
         Generate features proposed from Pandi et al, 2015
 
@@ -144,7 +170,23 @@ class Pandi:
 
         ### BOW ###
         count_1_2_gram_unstemmed = 0
+        for ng in vocab.unigram_unstemmed:
+            if ng in useful_ngrmas['unigram_unstemmed']:
+                count_1_2_gram_stemmed += 1
+
+        for ng in vocab.bigram_unstemmed:
+            if ng in useful_ngrmas['bigram_unstemmed']:
+                count_1_2_gram_stemmed += 1
+
         count_1_2_gram_stemmed = 0
+        for ng in vocab.unigram_stemmed:
+            if ng in useful_ngrmas['unigram_stemmed']:
+                count_1_2_gram_stemmed += 1
+
+        for ng in vocab.bigram_stemmed:
+            if ng in useful_ngrmas['bigram_stemmed']:
+                count_1_2_gram_stemmed += 1
+
 
         return np.array([num_char, num_words, num_commas, num_apost, num_ending_punct, len_word_avg, 
                 num_bad_pos, prop_bad_pos, num_words_in_prompt, prop_words_in_prompt, num_synonym, prop_synonym,
@@ -157,27 +199,96 @@ class Pandi:
         :param records_ans, records_prompt: Lists of records of answers and questions read from a tsv file.
         :return: numpy array as the features
         '''
+        # Generate useful unigrams and bigrams
+        unigram_unstemmed = set()
+        bigram_unstemmed = set()
+        unigram_stemmed = set()
+        bigram_stemmed = set()
+
         tokens_ans_list = []
+        vocabs = []
+        scores = []
         for items in records_ans:
-            ans = items[self.pos_ans]
-            nt = self.tokenizer.nlp(str(ans))
+            ans_id = items[self.pos_aid]
+            que_id = items[self.pos_qid]
+            score = items[self.pos_score]
+            scores.append(score)
+            text = items[self.pos_ans]
+            # def __init__(self, aid, qid, score, text, nlp):
+            vocab = Vocab(aid = ans_id, qid=que_id, score=score, text=text, nlp=self.nlp)
+            vocabs.append(vocab)
+            unigram_unstemmed |= set(vocab.unigram_unstemmed)
+            bigram_unstemmed |= set(vocab.bigram_unstemmed)
+            unigram_stemmed |= set(vocab.unigram_stemmed)
+            bigram_stemmed |= set(vocab.bigram_stemmed)
+
+            nt = self.tokenizer.nlp(str(text))
             tokens_ans_list.append(nt)
 
+        score_ave = np.mean(scores)
+        # For each ngram, generate the 2x2 matrix for Fisher test
+        #                             |good|bad|
+        #                          in| 100 | 2 |
+        #                         out| 15  | 3 |
+
+        # generate a ngram-pvalue dict
+        def pvalue_ngrams(ngrams):
+            pvalue_ngram = dict()
+            for ng in ngrams:
+                mat = np.zeros((2,2))
+                for vocab in vocabs:
+                    is_in = ng in vocab.unigram_unstemmed
+                    is_good = vocab.score >= score_ave
+                    if is_in and is_good:
+                        mat[0, 0] += 1
+                    elif is_in and not is_good:
+                        mat[0, 1] += 1
+                    elif not is_in and is_good:
+                        mat[1, 0] += 1
+                    elif not is_in and not is_good:
+                        mat[1, 1] += 1
+                _, pvalue = stats.fisher_exact(mat)
+                pvalue_ngram[ng] = pvalue
+            return pvalue_ngram
+
+        pvalue_unigram_unstemmed = pvalue_ngrams(unigram_unstemmed)
+        pvalue_bigram_unstemmed = pvalue_ngrams(bigram_unstemmed)
+        pvalue_unigram_stemmed = pvalue_ngrams(unigram_stemmed)
+        pvalue_bigram_stemmed = pvalue_ngrams(bigram_stemmed)
+                    
+        useful_unigram_unstemmed = set(map(lambda x:x[0], sorted(pvalue_unigram_unstemmed, key=lambda x:x[1], reverse=True)[:201]))
+        useful_bigram_unstemmed = set(map(lambda x:x[0], sorted(pvalue_bigram_unstemmed, key=lambda x:x[1], reverse=True)[:201]))
+        useful_unigram_stemmed = set(map(lambda x:x[0], sorted(pvalue_unigram_stemmed, key=lambda x:x[1], reverse=True)[:201]))
+        useful_bigram_stemmed = set(map(lambda x:x[0], sorted(pvalue_bigram_stemmed, key=lambda x:x[1], reverse=True)[:201]))
+        useful_ngrams = {
+                'unigram_unstemmed': useful_unigram_unstemmed,
+                'bigram_unstemmed': useful_bigram_unstemmed,
+                'unigram_stemmed': useful_unigram_stemmed,
+                'bigram_stemmed': useful_bigram_stemmed
+                }
+
         que = str(record_prompt[self.pos_que])
+        qid = str(record_prompt[self.pos_qid])
         tokens_prompt = self.tokenizer.nlp(text=que)
         print('tokens_prompt:',tokens_prompt)
         
+        save_path = '%s/%s' % (self.save_path, qid)
+        for k in useful_ngrams:
+            save_path_useful = '%s/%s.useful' % (save_path, k)
+            with open(save_path_useful, 'w') as fu:
+                fu.write(useful_ngrams[k])
+
         features = []
         # Generate feature for each answer
         logger.info("\tGenerating features for que %s \n" % record_prompt[1]) 
 
-        for items, token in zip(records_ans, tokens_ans_list):
+        for items, token, vocab in zip(records_ans, tokens_ans_list, vocabs):
             ans_id = items[self.pos_aid]
             que_id = items[self.pos_qid]
             score = items[self.pos_score]
             answer = items[self.pos_ans]
-            fea = ','.join(self.generate_fea_for_tokens(token, tokens_prompt).astype(str))
-            features.append('{aid}\t{qid}\t{score}\t{fea}\t{ans}\t{token}\n'.format(aid=ans_id, qid=que_id, score=score, fea=fea, ans=answer.strip(), token=token))
+            fea = ','.join(self.generate_fea_for_tokens(token, tokens_prompt, ).astype(str))
+            features.append('{aid}\t{qid}\t{score}\t{fea}\t{ans}\n'.format(aid=ans_id, qid=que_id, score=score, fea=fea, ans=answer.strip()))
         return features
 
 if __name__ == '__main__':

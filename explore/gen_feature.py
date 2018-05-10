@@ -7,7 +7,7 @@ import spacy
 import utils_basic as UB
 from utils_asag import check_c_path, Tokenizer
 from utils_bow import BOW
-from utils_pandi import Pandi
+from utils_phandi import Phandi
 # import utils_bow as B
 import data_format as D
 import pickle
@@ -15,7 +15,7 @@ import pickle
 from itertools import groupby
 
 parser = argparse.ArgumentParser()
-parser.add_argument('-ft', '--feature', dest='fea_type', type=str, metavar='Feature type', required=True, help="Feature type (bow|pandi)")
+parser.add_argument('-ft', '--feature', dest='fea_type', type=str, metavar='Feature type', required=True, help="Feature type (bow|phandi)")
 parser.add_argument('-n', '--ngram', dest='ngram', type=int, metavar='N-gram bow', required=True, help="n-gram for bow feature")
 parser.add_argument('-q', '--question', dest='que_id', type=int, metavar='Question ID', required=True, help="Question id or prompt id. If it is set, only features for answers to the specific question will be generated. If it i set to minus, features will be generated for each question.")
 parser.add_argument('-qf', '--question_file', dest='que_file', type=str, metavar='Question File', required=True, help="TSV file of questions. ID, promoptID, questionText are expected in this file.")
@@ -29,7 +29,7 @@ parser.add_argument('-rs', '--rm_stop', dest='rm_stop', type=UB.str2bool, metava
 parser.add_argument('-lm', '--lemma', dest='lemma', type=UB.str2bool, metavar="Flag of lemmatization", required=True, help="If this flag is set, words will be lemmatized before the generation of n-grams")
 parser.add_argument('-tf', '--term_frequency', dest='tf', type=UB.str2bool, metavar="Flag of term frequency", required=False, default='',  help="Necessary for BOW feature. If this flag is set, tf will be used as part of weight of terms. Defaultly set as False")
 parser.add_argument('-idf', '--inverse_doc_frequency', dest='idf', type=UB.str2bool, metavar="Flag of inverse doc frequency", required=False, default='', help="If this flag is set, idf will be used as part of weight of terms. Defaultly set as False")
-parser.add_argument('-pst', '--pandi_synonym_threshold', dest='pst', type=float, metavar="Threshold of similarity of synonymy", required=False, default=0.7, help="Necessary for Pandi feature. Words whose similarity is less than -pst will be considered as synonyms.")
+parser.add_argument('-pst', '--phandi_synonym_threshold', dest='pst', type=float, metavar="Threshold of similarity of synonymy", required=False, default=0.7, help="Necessary for Pandi feature. Words whose similarity is less than -pst will be considered as synonyms.")
 
 args = parser.parse_args()
 
@@ -48,8 +48,8 @@ logger.info('Initialize Tokenizer...')
 tokenizer = Tokenizer(ngram = args.ngram, rm_punct = args.rm_punct, rm_stop = args.rm_stop, lemma = args.lemma, nlp=nlp)
 if args.fea_type == 'bow':
     generator = BOW(tokenizer=tokenizer, voc_size = args.vocab_size, tf = args.tf, idf=args.idf) 
-elif args.fea_type == 'pandi':
-    generator = Pandi(tokenizer=tokenizer, synonym_threshold=args.pst)
+elif args.fea_type == 'phandi':
+    generator = Phandi(tokenizer=tokenizer, synonym_threshold=args.pst, nlp=nlp, save_path = args.output_path)
 
 # read records from tsv file 
 logger.info('Reading input file: %s' % args.input_file)
