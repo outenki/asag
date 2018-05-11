@@ -53,6 +53,7 @@ for prmpt in sorted(data_dict.keys()):
             range_train *= args.training_scale
         else:
             range_train = args.training_scale
+        range_train = int(range_train)
         train_ids = ids[:int(range_train)] # scale the training data
         dev_ids = ids[range_train:range_train+range_dev]
         test_ids = ids[-range_test:]
