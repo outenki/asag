@@ -9,6 +9,8 @@ import sys
 import nea.utils as U
 import pickle as pk
 
+import ipdb
+
 logger = logging.getLogger(__name__)
 
 ###############################################################################################################################
@@ -59,9 +61,7 @@ if args.seed > 0:
 if args.prompt_id != None:
     from nea.asap_evaluator import Evaluator
     import nea.asap_reader as dataset
-    print 'args.prompt_id'
 else:
-    print 'args.prompt_id is none'
     args.prompt_id = 0
     from nea.asap_evaluator import Evaluator
     import nea.asap_reader as dataset
@@ -143,8 +143,6 @@ dev_y_org = dev_y.astype(dataset.get_ref_dtype())
 test_y_org = test_y.astype(dataset.get_ref_dtype())
 
 # Convert scores to boundary of [0 1] for training and evaluation (loss calculation)
-print len(train_y)
-print len(train_pmt)
 train_y = dataset.get_model_friendly_scores(train_y, train_pmt)
 dev_y = dataset.get_model_friendly_scores(dev_y, dev_pmt)
 test_y = dataset.get_model_friendly_scores(test_y, test_pmt)
@@ -177,9 +175,11 @@ model.compile(loss=loss, optimizer=optimizer, metrics=[metric])
 ## Plotting model
 #
 
-from keras.utils.visualize_util import plot
+# from keras.utils.visualize_util import plot
+from keras.utils.vis_utils import plot_model
 
-plot(model, to_file = out_dir + '/model.png')
+# plot(model, to_file = out_dir + '/model.png')
+plot_model(model, to_file = out_dir + '/model.png', show_shapes=True, show_layer_names=True)
 
 ###############################################################################################################################
 ## Save model architecture
@@ -210,7 +210,8 @@ total_eval_time = 0
 for ii in range(args.epochs):
     # Training
     t0 = time()
-    train_history = model.fit(train_x, train_y, batch_size=args.batch_size, nb_epoch=1, verbose=0)
+    train_history = model.fit(train_x, train_y, batch_size=args.batch_size, epochs=1, verbose=0)
+    # ipdb.set_trace()
     tr_time = time() - t0
     total_train_time += tr_time
     

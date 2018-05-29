@@ -10,7 +10,7 @@ parser.add_argument('-d', '--data_path', dest='data_path', required=True, help='
 parser.add_argument('-p', '--process', dest='num_process', type=int, required=True, help='Number of multiprocess')
 parser.add_argument('-g', '--gpu', dest='gpu', required=True, help='Code of GPU device')
 parser.add_argument('-e', '--emb', dest='emb', required=False, default='', help='w2v file')
-parser.add_argument('-dim', '--emb_dim', dest='dim', type=int, required=False, default=50, help='Dim of embedding')
+parser.add_argument('-dim', '--emb_dim', dest='dim', type=int, required=False, default=50, help='Dim of emebedding')
 args = parser.parse_args()
 
 # Data path and output path
@@ -18,7 +18,7 @@ dt = datetime.now()
 path_data = args.data_path
 if path_data.endswith('/'):
     path_data = path_data[:-1]
-path_out = path_data + '_result_attsum' + dt.strftime('%Y%m%d%H%M%S')
+path_out = path_data + '_result_cnn10_w5' + dt.strftime('%Y%m%d%H%M%S')
 if not os.path.exists(path_out):
     try:
         os.mkdir(path_out)
@@ -27,11 +27,11 @@ if not os.path.exists(path_out):
 
 def run_shell(path_i, path_o, emb, pmt_id):
     print 'processing %s' % path_i
-    cmd="MKL_THREADING_LAYER=GNU KERAS_BACKEND='theano' THEANO_FLAGS='device=cuda%s,floatX=float32' python train_nea.py -tr %s/train.tsv -tu %s/dev.tsv -ts %s/test.tsv -p %s -o %s -e %d -r 250 -t breg --skip-init-bias --aggregation attsum " % (args.gpu, path_i, path_i, path_i, pmt_id, path_o, args.dim)
+    cmd="MKL_THREADING_LAYER=GNU KERAS_BACKEND='theano' THEANO_FLAGS='device=cuda%s,floatX=float32' python train_nea.py -tr %s/train.tsv -tu %s/dev.tsv -ts %s/test.tsv -p %s -o %s -e %d -r 250 -t breg --skip-init-bias --aggregation attsum -c 10 -w 5" % (args.gpu, path_i, path_i, path_i, pmt_id, path_o, args.dim)
     if emb:
         cmd += ' --emb %s' % emb
     print 'cmd: %s' % cmd
-    #os.system(cmd)
+    os.system(cmd)
 
 def run_on_list(path_data, path_in, path_out):
     # path_data/path_in is the fullpath of input data path

@@ -18,7 +18,7 @@ dt = datetime.now()
 path_data = args.data_path
 if path_data.endswith('/'):
     path_data = path_data[:-1]
-path_out = path_data + '_result_best_' + dt.strftime('%Y%m%d%H%M%S')
+path_out = path_data + '_result_best_breg' + dt.strftime('%Y%m%d%H%M%S')
 if not os.path.exists(path_out):
     try:
         os.mkdir(path_out)
@@ -27,7 +27,7 @@ if not os.path.exists(path_out):
 
 def run_shell(path_i, path_o, emb, pmt_id):
     print 'processing %s' % path_i
-    cmd="MKL_THREADING_LAYER=GNU KERAS_BACKEND='theano' THEANO_FLAGS='device=cuda%s,floatX=float32' python train_nea.py -tr %s/train.tsv -tu %s/dev.tsv -ts %s/test.tsv -p %s -o %s -e %d -c 0 -r 250 -t bregp --skip-init-bias --aggregation attsum" % (args.gpu, path_i, path_i, path_i, pmt_id, path_o, args.dim)
+    cmd="MKL_THREADING_LAYER=GNU KERAS_BACKEND='theano' THEANO_FLAGS='device=cuda%s,floatX=float32' python train_nea.py -tr %s/train.tsv -tu %s/dev.tsv -ts %s/test.tsv -p %s -o %s -e %d -c 0 -r 250 -t breg --skip-init-bias --aggregation attsum" % (args.gpu, path_i, path_i, path_i, pmt_id, path_o, args.dim)
     if emb:
         cmd += ' --emb %s' % emb
     print 'cmd: %s' % cmd
