@@ -36,6 +36,13 @@ class Attention(Layer):
                     name = '{}_att_b'.format(self.name))
         super(Attention, self).build(input_shape)
 
+        # init_val_v = (np.random.randn(input_shape[2]) * self.init_stdev).astype(K.floatx())
+        # self.att_v = K.variable(init_val_v, name='att_v')
+        # init_val_W = (np.random.randn(input_shape[2], input_shape[2]) * self.init_stdev).astype(K.floatx())
+        # self.att_W = K.variable(init_val_W, name='att_W')
+        # self.trainable_weights = [self.att_v, self.att_W]
+        # ipdb.set_trace()
+
     def call(self, x, mask=None):
         # ipdb.set_trace()
         u = K.dot(x, self.att_W)
@@ -43,14 +50,26 @@ class Attention(Layer):
             u += self.att_b
         if self.activation == 'tanh':
             u = K.tanh(u)
+        self.u = u
+        # if not self.activation:
+        #     weights = K.theano.tensor.tensordot(self.att_v, y, axes=[0, 2])
+        # elif activation == 'tanh':
+        #     weights = K.theano.tensor.tensordot(self.att_v, K.tanh(y), axes=[0, 2])
         weights = K.dot(u, self.att_v)
+        self.weights_1 = weights
+        # weights = K.theano.tensor.tensordot(self.att_v, y, axes=[0, 2])
         weights = K.exp(weights)
-        # weights = K.softmax(weights)
+        self.weights_e = weights
         if mask:
             weights *= K.cast(mask, K.floatx())
-        weights /= K.cast(K.sum(weights, axis=1, keepdims=True) + K.epsilon(), K.floatx())
+            self.weights_m = weights
+        weights = self.weights_m / K.cast(K.sum(weights, axis=1, keepdims=True) + K.epsilon(), K.floatx())
+        self.att_weights = weights
+        # weights = K.softmax(weights)
 
-        out = x * K.expand_dims(weights)
+        out = x * K.permute_dimensions(K.repeat(weights, x.shape[2]), [0, 2, 1])
+        self.out = out
+        # out = x * K.expand_dims(weights)
         if self.op == 'attsum':
             out = out.sum(axis=1)
         elif self.op == 'attmean':
