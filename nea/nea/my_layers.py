@@ -1,56 +1,34 @@
-# modified by outenki
-# 2018.5.28
-# Rewrite Attention layer
-
 import keras.backend as K
 from keras.engine.topology import Layer
 from keras.layers.convolutional import Convolution1D
-import keras.initializers as initializers
-import ipdb
+import numpy as np
+import sys
 
 class Attention(Layer):
-    def __init__(self, op='attsum', bias=True, activation='tanh', init_stdev=0.01, name='att', **kwargs):
+    def __init__(self, op='attsum', activation='tanh', init_stdev=0.01, **kwargs):
         self.supports_masking = True
         assert op in {'attsum', 'attmean'}
         assert activation in {None, 'tanh'}
         self.op = op
         self.activation = activation
         self.init_stdev = init_stdev
-        self.name = name
-        self.att_weight = 0
-        # self.init = initializers.get('glorot_normal')
-        self.init = initializers.RandomNormal(stddev=self.init_stdev)
-        self.bias = bias
         super(Attention, self).__init__(**kwargs)
 
     def build(self, input_shape):
-        self.att_W = self.add_weight((input_shape[2], input_shape[2]),
-                initializer = self.init,
-                name='{}_att_W'.format(self.name))
-        self.att_v = self.add_weight((input_shape[2],),
-                initializer = self.init,
-                name='{}_att_v'.format(self.name))
-        if self.bias:
-            self.att_b = self.add_weight((input_shape[2], ),
-                    initializer = self.init,
-                    name = '{}_att_b'.format(self.name))
-        super(Attention, self).build(input_shape)
-
+        init_val_v = (np.random.randn(input_shape[2]) * self.init_stdev).astype(K.floatx())
+        self.att_v = K.variable(init_val_v, name='att_v')
+        init_val_W = (np.random.randn(input_shape[2], input_shape[2]) * self.init_stdev).astype(K.floatx())
+        self.att_W = K.variable(init_val_W, name='att_W')
+        self.trainable_weights = [self.att_v, self.att_W]
+    
     def call(self, x, mask=None):
-        # ipdb.set_trace()
-        u = K.dot(x, self.att_W)
-        if self.bias:
-            u += self.att_b
-        if self.activation == 'tanh':
-            u = K.tanh(u)
-        weights = K.dot(u, self.att_v)
-        weights = K.exp(weights)
-        # weights = K.softmax(weights)
-        if mask:
-            weights *= K.cast(mask, K.floatx())
-        weights /= K.cast(K.sum(weights, axis=1, keepdims=True) + K.epsilon(), K.floatx())
-
-        out = x * K.expand_dims(weights)
+        y = K.dot(x, self.att_W)
+        if not self.activation:
+            weights = K.theano.tensor.tensordot(self.att_v, y, axes=[0, 2])
+        elif self.activation == 'tanh':
+            weights = K.theano.tensor.tensordot(self.att_v, K.tanh(y), axes=[0, 2])
+        weights = K.softmax(weights)
+        out = x * K.permute_dimensions(K.repeat(weights, x.shape[2]), [0, 2, 1])
         if self.op == 'attsum':
             out = out.sum(axis=1)
         elif self.op == 'attmean':
@@ -59,7 +37,6 @@ class Attention(Layer):
 
     def get_output_shape_for(self, input_shape):
         return (input_shape[0], input_shape[2])
-
     def compute_output_shape(self, input_shape):
         return (input_shape[0], input_shape[2])
     
@@ -80,13 +57,11 @@ class MeanOverTime(Layer):
     def call(self, x, mask=None):
         if self.mask_zero:
             return K.cast(x.sum(axis=1) / mask.sum(axis=1, keepdims=True), K.floatx())
-            # return K.cast(x.reduce_sum(axis=1) / mask.reduce_sum(axis=1, keepdims=True), K.floatx())
         else:
             return K.mean(x, axis=1)
 
     def get_output_shape_for(self, input_shape):
         return (input_shape[0], input_shape[2])
-
     def compute_output_shape(self, input_shape):
         return (input_shape[0], input_shape[2])
     
@@ -105,3 +80,4 @@ class Conv1DWithMasking(Convolution1D):
     
     def compute_mask(self, x, mask):
         return mask
+

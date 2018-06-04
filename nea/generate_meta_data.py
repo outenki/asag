@@ -38,7 +38,7 @@ for prmpt, data in groupby(lines, key=lambda x:x[1]):
 
 for prmpt in sorted(data_dict.keys()):
     # generate id files for each prmpt/question
-    print 'generate for %s' % prmpt
+    print('generate for %s' % prmpt)
     id_answers = data_dict[prmpt]
     ids = list(map(lambda x:x[0], id_answers))
 
@@ -57,9 +57,9 @@ for prmpt in sorted(data_dict.keys()):
         train_ids = ids[:int(range_train)] # scale the training data
         dev_ids = ids[range_train:range_train+range_dev]
         test_ids = ids[-range_test:]
-        print train_ids
-        print dev_ids
-        print test_ids
+        print(train_ids)
+        print(dev_ids)
+        print(test_ids)
 
         # create folder
         ans_path = "%s/%s" % (output, prmpt)

@@ -9,7 +9,7 @@ class W2VEmbReader:
         logger.info('Loading embeddings from: ' + emb_path)
         has_header=False
         with codecs.open(emb_path, 'r', encoding='utf8') as emb_file:
-            tokens = emb_file.next().split()
+            tokens = emb_file.readline().split()
             if len(tokens) == 2:
                 try:
                     int(tokens[0])
@@ -19,23 +19,16 @@ class W2VEmbReader:
                     pass
         if has_header:
             with codecs.open(emb_path, 'r', encoding='utf8') as emb_file:
-                tokens = emb_file.next().split()
+                tokens = emb_file.readline().split()
                 assert len(tokens) == 2, 'The first line in W2V embeddings must be the pair (vocab_size, emb_dim)'
                 self.vocab_size = int(tokens[0])
                 self.emb_dim = int(tokens[1])
-                print 'self.emb_dim=', self.emb_dim
-                print 'emb_dim=', emb_dim
                 assert self.emb_dim == emb_dim, 'The embeddings dimension does not match with the requested dimension'
                 self.embeddings = {}
                 counter = 0
                 for line in emb_file:
                     tokens = line.split()
                     # tokens = tokens[0:1] + tokens[1].split(',')
-                    if not len(tokens) == self.emb_dim + 1:
-                        print len(tokens)
-                        print self.emb_dim
-                        print line
-                        print tokens
                     assert len(tokens) == self.emb_dim + 1, 'The number of dimensions does not match the header info'
                     word = tokens[0]
                     vec = tokens[1:]
@@ -69,7 +62,8 @@ class W2VEmbReader:
     
     def get_emb_matrix_given_vocab(self, vocab, emb_matrix):
         counter = 0.
-        for word, index in vocab.iteritems():
+        # for word, index in vocab.iteritems():
+        for word, index in vocab.items():
             try:
                 emb_matrix[index] = self.embeddings[word]
                 counter += 1

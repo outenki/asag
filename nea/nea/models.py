@@ -1,6 +1,5 @@
 import numpy as np
 import logging
-import ipdb
 
 logger = logging.getLogger(__name__)
 
@@ -27,14 +26,14 @@ def create_model(args, initial_mean_value, overal_maxlen, vocab):
     ## Create Model
     #
     
-    dropout_W = 0.5        # default=0.5
-    dropout_U = 0.1        # default=0.1
+    # dropout_W = 0.5        # default=0.5
+    # dropout_U = 0.1        # default=0.1
     cnn_border_mode='same'
     if initial_mean_value.ndim == 0:
-        print "Dim of initial_mean_value is 0"
+        print("Dim of initial_mean_value is 0")
         initial_mean_value = np.expand_dims(initial_mean_value, axis=1)
     num_outputs = len(initial_mean_value)
-    print "Dim of initial_mean_value is:", num_outputs
+    print("Dim of initial_mean_value is:", num_outputs)
     
     if args.model_type == 'cls':
         raise NotImplementedError
@@ -46,7 +45,7 @@ def create_model(args, initial_mean_value, overal_maxlen, vocab):
     model.add(Embedding(args.vocab_size, args.emb_dim, mask_zero=True))
     model.emb_index = 0
     if args.emb_path:
-        from w2vEmbReader import W2VEmbReader as EmbReader
+        from nea.w2vEmbReader import W2VEmbReader as EmbReader
         logger.info('        Initializing lookup table')
         emb_reader = EmbReader(args.emb_path, emb_dim=args.emb_dim)
         # ipdb.set_trace()

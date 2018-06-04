@@ -104,13 +104,11 @@ def create_vocab(file_path, prompt_id, maxlen, vocab_size, tokenize_text, to_low
     total_words, unique_words = 0, 0
     word_freqs = {}
     with codecs.open(file_path, mode='r', encoding='UTF8') as input_file:
-        input_file.next()
+        input_file.readline()
         for line in input_file:
             tokens = line.strip().split('\t')
-            essay_id = int(tokens[0])
             essay_set = int(tokens[1])
             content = tokens[2].strip()
-            score = float(tokens[6])
             if essay_set == prompt_id or prompt_id <= 0:
                 if to_lower:
                     content = content.lower()
@@ -156,7 +154,7 @@ def read_essays(file_path, prompt_id):
     essays_list = []
     essays_ids = []
     with codecs.open(file_path, mode='r', encoding='UTF8') as input_file:
-        input_file.next()
+        input_file.readline()
         for line in input_file:
             tokens = line.strip().split('\t')
             if int(tokens[1]) == prompt_id or prompt_id <= 0:
@@ -173,7 +171,7 @@ def read_dataset(file_path, prompt_id, maxlen, vocab, tokenize_text, to_lower, s
     num_hit, unk_hit, total = 0., 0., 0.
     maxlen_x = -1
     with codecs.open(file_path, mode='r', encoding='UTF8') as input_file:
-        input_file.next()
+        input_file.readline()
         for line in input_file:
             tokens = line.strip().split('\t')
             essay_id = int(tokens[0])

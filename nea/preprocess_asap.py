@@ -18,7 +18,7 @@ def extract_based_on_ids(dataset, id_file):
             try:
                 lines.append(dataset[id])
             except:
-                print >> sys.stederr, 'ERROR: Invalid ID %s in %s' % (id, id_file)
+                print('ERROR: Invalid ID %s in %s' % (id, id_file), file=sys.stederr)
     return lines
 
 def create_dataset(lines, output_fname):

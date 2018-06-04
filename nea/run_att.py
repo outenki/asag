@@ -23,15 +23,15 @@ if not os.path.exists(path_out):
     try:
         os.mkdir(path_out)
     except Exception as e:
-        print 'Failed to create output path: %s' % e
+        print('Failed to create output path: %s' % e)
 
 def run_shell(path_i, path_o, emb, pmt_id):
-    print 'processing %s' % path_i
+    print('processing %s' % path_i)
     cmd="MKL_THREADING_LAYER=GNU KERAS_BACKEND='theano' THEANO_FLAGS='device=cuda%s,floatX=float32' python train_nea.py -tr %s/train.tsv -tu %s/dev.tsv -ts %s/test.tsv -p %s -o %s -e %d -r 250 -t breg --skip-init-bias --aggregation attsum " % (args.gpu, path_i, path_i, path_i, pmt_id, path_o, args.dim)
     if emb:
         cmd += ' --emb %s' % emb
-    print 'cmd: %s' % cmd
-    #os.system(cmd)
+    print('cmd: %s' % cmd)
+    os.system(cmd)
 
 def run_on_list(path_data, path_in, path_out):
     # path_data/path_in is the fullpath of input data path
@@ -41,8 +41,8 @@ def run_on_list(path_data, path_in, path_out):
         run_shell('%s/%s' % (path_data, p), '%s/%s' %(path_out, p), args.emb, p)
 
 answer_path = sorted(os.listdir(path_data))
-print answer_path
-print args.dim
+print(answer_path)
+print(args.dim)
 # run_on_list(path_data, answer_path, path_out)
 pool = Pool()
 for i in range(args.num_process):

@@ -37,7 +37,7 @@ for prmpt, data in groupby(lines, key=lambda x:x[1]):
 
 for prmpt in sorted(data_dict.keys()):
     # generate id files for each prmpt/question
-    print 'generate for %s' % prmpt
+    print('generate for %s' % prmpt)
     id_answers = data_dict[prmpt]
     ids = list(map(lambda x:x[0], id_answers))
     for i, idx in enumerate(ids):

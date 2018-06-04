@@ -3,7 +3,6 @@
 ## Script to pre-process ASAP dataset (training_set_rel3.tsv) based on the essay IDs
 
 import argparse
-import codecs
 import sys
 import os
 
@@ -21,7 +20,7 @@ def extract_based_on_ids(dataset, id_file):
             try:
                 lines.append(dataset[ans_id])
             except:
-                print >> sys.stderr, 'ERROR: Invalid ID %s in %s' % (ans_id, id_file)
+                print('ERROR: Invalid ID %s in %s' % (ans_id, id_file), file=sys.stderr)
     return lines
 
 def create_dataset(lines, output_fname):
@@ -40,14 +39,12 @@ def collect_dataset(input_file):
                 dataset['header'] = line
                 continue
             parts = line.split('\t')
-            print 'len_parts:', len(parts)
             assert len(parts) >= 5, 'ERROR: ' + line
             dataset[parts[0]] = line
     return dataset
 
 dataset = collect_dataset(args.input_file)
 for fold in sorted(os.listdir(args.path_name)):
-    print fold
     for dataset_type in ['dev', 'test', 'train']:
         lines = extract_based_on_ids(dataset, '%s/%s/%s_ids.txt' % (path_name, fold, dataset_type))
         create_dataset(lines, '%s/%s/%s.tsv' % (path_name, fold, dataset_type))
