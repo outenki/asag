@@ -55,8 +55,8 @@ with open(args.input_file, 'r', encoding='utf-8') as f_tsv:
     logger.info("\tTitles: %s" % titles.strip())
 
     # sort and group records by que_id
-    records.sort(key=operator.itemgetter(D.pos_qid))
-    qid_records = groupby(records, key=operator.itemgetter(D.pos_qid))
+    records.sort(key=operator.itemgetter(D.ans_pos_qid))
+    qid_records = groupby(records, key=operator.itemgetter(D.ans_pos_qid))
     if int(args.que_id) < 0:
         # generate feature for everyquestion, 
         # and the output filename is created based on the que_id
@@ -66,7 +66,7 @@ with open(args.input_file, 'r', encoding='utf-8') as f_tsv:
             rec = list(rec)
             logger.info("Processing question %s" % qid)
             print("Processing question %s" % qid)
-            features = bow.gen_bow_for_records(rec, ngram=args.ngram, path_save_token=path_q)
+            features = bow.gen_fea_for_records(rec, path_save_token=path_q)
             with open('%s/%s/%s.fea' % (out_dir, qid, args.fea_type), 'w') as f_out:
                 f_out.write(titles)
                 f_out.writelines(features)

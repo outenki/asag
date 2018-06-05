@@ -135,8 +135,8 @@ class BOW:
         logger.info("Generating vocab ...")
         token_list = []
         for items in records:
-            ans = items[self.ans_pos_ans]
-            nt = self.tokenizer.tokenize(text=ans)
+            ans = items[self.pos_ans]
+            nt = self.tokenizer.ngram_words(text=ans)
             token_list.append(nt)
         self.vocab_from_tokens(token_list, path_save_token)
         logger.info("\tVocab_size: %d", self.voc_size)
@@ -146,10 +146,10 @@ class BOW:
         logger.info("\tGenerating features ...\n")
         # for aid, qid, sco, t in zip(ans_ids, que_ids, scores, token_list):
         for items, token in zip(records, token_list):
-            ans_id = items[self.ans_pos_id]
-            que_id = items[self.ans_pos_qid]
-            score = items[self.ans_pos_score]
-            answer = items[self.ans_pos_ans]
+            ans_id = items[self.pos_id]
+            que_id = items[self.pos_qid]
+            score = items[self.pos_score]
+            answer = items[self.pos_ans]
             fea = ','.join(self.generate_feature_from_tokens(token).astype(str))
             features.append('{aid}\t{qid}\t{score}\t{fea}\t{ans}\t{token}\n'.format(aid=ans_id, qid=que_id, score=score, fea=fea, ans=answer.strip(), token=token))
         return features

@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 plt.switch_backend('agg')
 
 import logging
-from eva import RMSE, weightedF1, QWK, conf_mat, plot_confusion_matrix
+from utils_eval import RMSE, weightedF1, QWK, conf_mat, plot_confusion_matrix
 from sklearn.svm import SVR, SVC
 import numpy as np
 import operator
@@ -62,9 +62,9 @@ def run_svm(kernel, file_data, f_vocab, path_out, que_id, train_ratio=0.8, rint=
     if training_scale > 0:
         scale = training_scale
     X = np.array(list(map(lambda r:r.split(','), data_train[:,3]))).astype(float)[:scale]
-    print('X:', X[2])
+    # print('X:', X[2])
     y = data_train[:,2][:scale].astype(float)
-    print('Y:', y[2])
+    # print('Y:', y[2])
 
     LOGGER.info('Q{}:Initialize {} ...'.format(que_id, model_name))
     if classify:
@@ -150,8 +150,6 @@ def run_svm(kernel, file_data, f_vocab, path_out, que_id, train_ratio=0.8, rint=
     LOGGER.info('Q{}: \tNormalized confusion_matrix: {}'.format(que_id, save_path))
     plot_confusion_matrix(cm, classes, save_path, normalize=True, 
                           title='Confusion matrix', cmap=plt.cm.Blues)
-
-
 
     rmse = RMSE(score_float, pred_float)
     LOGGER.info('Q{}: \trmse: {}'.format(que_id, rmse))

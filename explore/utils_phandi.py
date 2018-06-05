@@ -1,3 +1,4 @@
+from __future__ import unicode_literals
 '''
 Generate features proposed from Phandi et al, 2015
 FeatureType         Description
@@ -22,7 +23,6 @@ BOW                 Count of useful unigrams and bigrams (unstemmed)
 '''
 
 import numpy as np
-import spacy
 import logging
 import data_format as D
 from scipy import stats
@@ -169,28 +169,31 @@ class Phandi:
         prop_synonym = num_synonym / num_words
 
         ### BOW ###
-        count_1_2_gram_unstemmed = 0
+        count_1_2_gram_unstemmed = np.zeros(201)
         for ng in vocab.unigram_unstemmed:
-            if ng in useful_ngrmas['unigram_unstemmed']:
-                count_1_2_gram_stemmed += 1
+            if ng in useful_ngrams['unigram_unstemmed']:
+                idx = useful_ngrams['unigram_unstemmed'][ng]
+                count_1_2_gram_unstemmed[idx] += 1
 
         for ng in vocab.bigram_unstemmed:
-            if ng in useful_ngrmas['bigram_unstemmed']:
-                count_1_2_gram_stemmed += 1
+            if ng in useful_ngrams['bigram_unstemmed']:
+                idx = useful_ngrams['bigram_unstemmed'][ng]
+                count_1_2_gram_unstemmed[idx] += 1
 
-        count_1_2_gram_stemmed = 0
+        count_1_2_gram_stemmed = np.zeros(201)
         for ng in vocab.unigram_stemmed:
-            if ng in useful_ngrmas['unigram_stemmed']:
-                count_1_2_gram_stemmed += 1
+            if ng in useful_ngrams['unigram_stemmed']:
+                idx = useful_ngrams['unigram_stemmed'][ng]
+                count_1_2_gram_stemmed[idx] += 1
 
         for ng in vocab.bigram_stemmed:
-            if ng in useful_ngrmas['bigram_stemmed']:
-                count_1_2_gram_stemmed += 1
+            if ng in useful_ngrams['bigram_stemmed']:
+                idx = useful_ngrams['bigram_stemmed'][ng]
+                count_1_2_gram_stemmed[idx] += 1
 
-
-        return np.array([num_char, num_words, num_commas, num_apost, num_ending_punct, len_word_avg, 
-                num_bad_pos, prop_bad_pos, num_words_in_prompt, prop_words_in_prompt, num_synonym, prop_synonym,
-                count_1_2_gram_unstemmed, count_1_2_gram_stemmed])
+        fea = np.array([num_char, num_words, num_commas, num_apost, num_ending_punct, len_word_avg, 
+                num_bad_pos, prop_bad_pos, num_words_in_prompt, prop_words_in_prompt, num_synonym, prop_synonym])
+        return np.concatenate([fea, count_1_2_gram_unstemmed, count_1_2_gram_stemmed])
         
     def gen_fea_for_records(self, records_ans, record_prompt, path_save_token):
         '''
@@ -212,7 +215,7 @@ class Phandi:
             ans_id = items[self.pos_aid]
             que_id = items[self.pos_qid]
             score = items[self.pos_score]
-            scores.append(score)
+            scores.append(float(score))
             text = items[self.pos_ans]
             # def __init__(self, aid, qid, score, text, nlp):
             vocab = Vocab(aid = ans_id, qid=que_id, score=score, text=text, nlp=self.nlp)
@@ -223,6 +226,7 @@ class Phandi:
             bigram_stemmed |= set(vocab.bigram_stemmed)
 
             nt = self.tokenizer.nlp(str(text))
+            #nt = self.tokenizer.nlp(u'%s' % str(text))
             tokens_ans_list.append(nt)
 
         score_ave = np.mean(scores)
@@ -238,7 +242,7 @@ class Phandi:
                 mat = np.zeros((2,2))
                 for vocab in vocabs:
                     is_in = ng in vocab.unigram_unstemmed
-                    is_good = vocab.score >= score_ave
+                    is_good = float(vocab.score) >= score_ave
                     if is_in and is_good:
                         mat[0, 0] += 1
                     elif is_in and not is_good:
@@ -251,24 +255,33 @@ class Phandi:
                 pvalue_ngram[ng] = pvalue
             return pvalue_ngram
 
+        print('Fisher testing...')
         pvalue_unigram_unstemmed = pvalue_ngrams(unigram_unstemmed)
         pvalue_bigram_unstemmed = pvalue_ngrams(bigram_unstemmed)
         pvalue_unigram_stemmed = pvalue_ngrams(unigram_stemmed)
         pvalue_bigram_stemmed = pvalue_ngrams(bigram_stemmed)
                     
-        useful_unigram_unstemmed = set(map(lambda x:x[0], sorted(pvalue_unigram_unstemmed, key=lambda x:x[1], reverse=True)[:201]))
-        useful_bigram_unstemmed = set(map(lambda x:x[0], sorted(pvalue_bigram_unstemmed, key=lambda x:x[1], reverse=True)[:201]))
-        useful_unigram_stemmed = set(map(lambda x:x[0], sorted(pvalue_unigram_stemmed, key=lambda x:x[1], reverse=True)[:201]))
-        useful_bigram_stemmed = set(map(lambda x:x[0], sorted(pvalue_bigram_stemmed, key=lambda x:x[1], reverse=True)[:201]))
+        print('Get the top 200 useful ngrams')
+        useful_unigram_unstemmed = list(map(lambda x:x[0], sorted(pvalue_unigram_unstemmed.items(), key=lambda x:x[1], reverse=True)[:201]))
+        useful_bigram_unstemmed = list(map(lambda x:x[0], sorted(pvalue_bigram_unstemmed.items(), key=lambda x:x[1], reverse=True)[:201]))
+        useful_unigram_stemmed = list(map(lambda x:x[0], sorted(pvalue_unigram_stemmed.items(), key=lambda x:x[1], reverse=True)[:201]))
+        useful_bigram_stemmed = list(map(lambda x:x[0], sorted(pvalue_bigram_stemmed.items(), key=lambda x:x[1], reverse=True)[:201]))
+
+        enum_useful_unigram_unstemmed = dict([(ng, idx) for idx, ng in enumerate(useful_unigram_unstemmed)])
+        enum_useful_bigram_unstemmed = dict([(ng, idx) for idx, ng in enumerate(useful_bigram_unstemmed)])
+        enum_useful_unigram_stemmed = dict([(ng, idx) for idx, ng in enumerate(useful_unigram_stemmed)])
+        enum_useful_bigram_stemmed = dict([(ng, idx) for idx, ng in enumerate(useful_bigram_stemmed)])
+
         useful_ngrams = {
-                'unigram_unstemmed': useful_unigram_unstemmed,
-                'bigram_unstemmed': useful_bigram_unstemmed,
-                'unigram_stemmed': useful_unigram_stemmed,
-                'bigram_stemmed': useful_bigram_stemmed
+                'unigram_unstemmed': enum_useful_unigram_unstemmed,
+                'bigram_unstemmed': enum_useful_bigram_unstemmed,
+                'unigram_stemmed': enum_useful_unigram_stemmed,
+                'bigram_stemmed': enum_useful_bigram_stemmed
                 }
 
         que = str(record_prompt[self.pos_que])
         qid = str(record_prompt[self.pos_qid])
+        # tokens_prompt = self.tokenizer.nlp(text=u'%s' % que)
         tokens_prompt = self.tokenizer.nlp(text=que)
         print('tokens_prompt:',tokens_prompt)
         
@@ -276,7 +289,8 @@ class Phandi:
         for k in useful_ngrams:
             save_path_useful = '%s/%s.useful' % (save_path, k)
             with open(save_path_useful, 'w') as fu:
-                fu.write(useful_ngrams[k])
+                for ng in useful_ngrams[k]:
+                    fu.write(str(ng) + '\n')
 
         features = []
         # Generate feature for each answer
@@ -287,7 +301,7 @@ class Phandi:
             que_id = items[self.pos_qid]
             score = items[self.pos_score]
             answer = items[self.pos_ans]
-            fea = ','.join(self.generate_fea_for_tokens(token, tokens_prompt, ).astype(str))
+            fea = ','.join(self.generate_fea_for_tokens(token, tokens_prompt, vocab, useful_ngrams).astype(str))
             features.append('{aid}\t{qid}\t{score}\t{fea}\t{ans}\n'.format(aid=ans_id, qid=que_id, score=score, fea=fea, ans=answer.strip()))
         return features
 

@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 plt.switch_backend('agg')
 
 import logging
-from eva import RMSE, weightedF1, QWK, conf_mat, plot_confusion_matrix
+from utils_eval import RMSE, weightedF1, QWK, conf_mat, plot_confusion_matrix
 from sklearn.neighbors import KNeighborsClassifier
 import numpy as np
 import operator
