@@ -8,8 +8,7 @@ import time
 import os
 import sys
 import pandas as pd
-
-print('start to load flags\n')
+import logging
 
 # flags
 tf.flags.DEFINE_float("epsilon", 0.1, "Epsilon value for Adam Optimizer.")
@@ -27,8 +26,8 @@ tf.flags.DEFINE_integer("embedding_size", 300, "Embedding size for embedding mat
 tf.flags.DEFINE_integer("essay_set_id", 1, "essay set id, 1 <= id <= 8")
 tf.flags.DEFINE_integer("token_num", 6, "The number of token in glove (6, 42)")
 tf.flags.DEFINE_boolean("gated_addressing", False, "Simple gated addressing")
-tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
-tf.flags.DEFINE_boolean("log_device_placement", False, "Log placement of ops on devices")
+tf.flags.DEFINE_boolean("allow_soft_placement", False, "Allow device soft device placement")
+tf.flags.DEFINE_boolean("log_device_placement", True, "Log placement of ops on devices")
 # hyper-parameters
 FLAGS = tf.flags.FLAGS
 # FLAGS._parse_flags()
@@ -53,21 +52,42 @@ else:
     from memn2n_kv import MemN2N_KV
 # print flags info
 orig_stdout = sys.stdout
+
 timestamp = time.strftime("%b_%d_%Y_%H:%M:%S", time.localtime())
 folder_name = 'essay_set_{}_{}_{}'.format(essay_set_id, num_samples, timestamp)
 out_dir = os.path.abspath(os.path.join(os.path.curdir, "runs", folder_name))
 if not os.path.exists(out_dir):
     os.makedirs(out_dir)
 
+# Setting logger
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+fh = logging.FileHandler('{}/log.txt'.format(out_dir))
+fh.setLevel(logging.INFO)
+fh.setFormatter(formatter)
+ch = logging.StreamHandler()
+ch.setFormatter(formatter)
+ch.setLevel(logging.INFO)
+logger.addHandler(fh)
+logger.addHandler(ch)
+# Setting logger done.
+
 # save output to a file
 #f = file(out_dir+'/out.txt', 'w')
 #sys.stdout = f
-print("Writing to {}\n".format(out_dir))
+logger.info("Writing to {}\n".format(out_dir))
+# print("Writing to {}\n".format(out_dir))
 
-print("\nParameters:")
+logger.info("Parameters:")
 for attr, value in sorted(FLAGS.__flags.items()):
-    print("{}={}".format(attr.upper(), value))
-print("")
+    logger.info("\t{}={}".format(attr.upper(), value))
+
+# print("\nParameters:")
+# for attr, value in sorted(FLAGS.__flags.items()):
+#     print("{}={}".format(attr.upper(), value))
+# print("")
 
 with open(out_dir+'/params', 'w') as f:
     for attr, value in sorted(FLAGS.__flags.items()):
@@ -85,7 +105,7 @@ if essay_set_id == 7:
 elif essay_set_id == 8:
     min_score, max_score = 0, 60
 
-print('max_score is {} \t min_score is {}\n'.format(max_score, min_score))
+logger.info('max_score is {} \t min_score is {}\n'.format(max_score, min_score))
 with open(out_dir+'/params', 'a') as f:
     f.write('max_score is {} \t min_score is {} \n'.format(max_score, min_score))
 
@@ -104,14 +124,14 @@ sent_size_list = list(map(len, [essay for essay in essay_list]))
 max_sent_size = max(sent_size_list)
 mean_sent_size = int(np.mean(list(map(len, essay_list))))
 
-print('max sentence size: {} \nmean sentence size: {}\n'.format(max_sent_size, mean_sent_size))
+logger.info('max sentence size: {} \nmean sentence size: {}\n'.format(max_sent_size, mean_sent_size))
 with open(out_dir+'/params', 'a') as f:
     f.write('max sentence size: {} \nmean sentence size: {}\n'.format(max_sent_size, mean_sent_size))
 
-print('The length of score range is {}'.format(len(score_range)))
+logger.info('The length of score range is {}'.format(len(score_range)))
 E = data_utils.vectorize_data(essay_list, word_idx, max_sent_size)
 
-labeled_data = zip(E, resolved_scores, sent_size_list)
+labeled_data = zip(E, resolved_scores, sent_size_list) # vector, score, length
 
 # split the data on the fly
 #trainE, testE, train_scores, test_scores, train_sent_sizes, test_sent_sizes = cross_validation.train_test_split(
@@ -127,6 +147,7 @@ memory = []
 memory_score = []
 memory_sent_size = []
 memory_essay_ids = []
+
 # pick sampled essay for each score
 for i in score_range:
     # test point: limit the number of samples in memory for 8
@@ -151,9 +172,9 @@ n_train = len(trainE)
 n_test = len(testE)
 n_eval = len(evalE)
 
-print('The size of training data: {}'.format(n_train))
-print('The size of testing data: {}'.format(n_test))
-print('The size of evaluation data: {}'.format(n_eval))
+logger.info('The size of training data: {}'.format(n_train))
+logger.info('The size of testing data: {}'.format(n_test))
+logger.info('The size of evaluation data: {}'.format(n_eval))
 with open(out_dir+'/params', 'a') as f:
     f.write('The size of training data: {}\n'.format(n_train))
     f.write('The size of testing data: {}\n'.format(n_test))
@@ -171,6 +192,7 @@ with tf.Graph().as_default():
     session_conf = tf.ConfigProto(
         allow_soft_placement=FLAGS.allow_soft_placement,
         log_device_placement=FLAGS.log_device_placement)
+    session_conf.gpu_options.allow_growth = True
 
     global_step = tf.Variable(0, name="global_step", trainable=False)
     # decay learning rate
@@ -179,7 +201,6 @@ with tf.Graph().as_default():
 
     # test point
     optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate, epsilon=FLAGS.epsilon)
-    #optimizer = tf.train.AdagradOptimizer(learning_rate)
     best_kappa_so_far = 0.0
     with tf.Session(config=session_conf) as sess:
         model = MemN2N_KV(batch_size, vocab_size, max_sent_size, max_sent_size, memory_size,
@@ -200,10 +221,6 @@ with tf.Graph().as_default():
         train_op = optimizer.apply_gradients(grads_and_vars, name="train_op", global_step=global_step)
         
         # sess.run(tf.initialize_all_variables(), feed_dict={model.w_placeholder: word2vec})
-        print('placeholder:', model.w_placeholder)
-        # print(word2vec)
-        print(sess.run(tf.report_uninitialized_variables()))
-        # ipdb.set_trace()
         sess.run(tf.global_variables_initializer(), feed_dict={model.w_placeholder: word2vec})
 
         saver = tf.train.Saver(tf.all_variables())
@@ -256,7 +273,7 @@ with tf.Graph().as_default():
                 _, cost, time_spent = train_step(batched_memory, e, s, mem_atten_encoding)
                 total_time += time_spent
                 train_cost += cost
-            print('Finish epoch {}, total training cost is {}, time spent is {}'.format(i, train_cost, total_time))
+            logger.info('Finish epoch {}, total training cost is {}, time spent is {}'.format(i, train_cost, total_time))
             # evaluation
             if i % FLAGS.evaluation_interval == 0 or i == FLAGS.epochs:
                 # test on training data
@@ -324,9 +341,9 @@ with tf.Graph().as_default():
                             f.write('{}\n'.format(ite))
                             f.write('{}\n'.format(test_atten_probs[idx]))
                     #saver.save(sess, out_dir+'/checkpoints', global_step)
-                print("Training kappa score = {}".format(train_kappp_score))
-                print("Validation kappa score = {}".format(eval_kappp_score))
-                print("Testing kappa score = {}".format(test_kappp_score))
+                logger.info("Training kappa score = {}".format(train_kappp_score))
+                logger.info("Validation kappa score = {}".format(eval_kappp_score))
+                logger.info("Testing kappa score = {}".format(test_kappp_score))
                 with open(out_dir+'/eval', 'a') as f:
                     f.write("Training kappa score = {}\n".format(train_kappp_score))
                     f.write("Validation kappa score = {}\n".format(eval_kappp_score))
