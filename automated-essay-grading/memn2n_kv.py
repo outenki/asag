@@ -100,7 +100,6 @@ class MemN2N_KV(object):
         self._reader = reader
         self._build_inputs()
 
-        d = feature_size
         self._feature_size = feature_size
         self._n_hidden = feature_size
         self.reader_feature_size = 0
@@ -214,7 +213,6 @@ class MemN2N_KV(object):
             # [feature_size, batch_size]
             u_o = tf.matmul(self.A, questions, transpose_b=True)
             u = [u_o]
-            hop_probs = []
             for _ in range(self._hops):
                 R = r_list[_]
                 u_temp = u[-1]
