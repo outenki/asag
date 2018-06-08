@@ -1,6 +1,6 @@
 import data_utils
 import numpy as np
-from sklearn import cross_validation
+from sklearn.model_selection import train_test_split
 from qwk import quadratic_weighted_kappa
 import tensorflow as tf
 from memn2n_kv import add_gradient_noise
@@ -24,9 +24,10 @@ tf.flags.DEFINE_integer("hops", 3, "Number of hops in the Memory Network.")
 tf.flags.DEFINE_integer("epochs", 100, "Number of epochs to train for.")
 tf.flags.DEFINE_integer("embedding_size", 300, "Embedding size for embedding matrices.")
 tf.flags.DEFINE_string("essay_set_id_file", 'prompts.txt', "file stroring the IDs of essay set, one id at each line")
+tf.flags.DEFINE_string("data_file", 'training_data.tsv', "Data file")
 tf.flags.DEFINE_integer("token_num", 6, "The number of token in glove (6, 42)")
 tf.flags.DEFINE_boolean("gated_addressing", False, "Simple gated addressing")
-tf.flags.DEFINE_boolean("allow_soft_placement", False, "Allow device soft device placement")
+tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
 tf.flags.DEFINE_boolean("log_device_placement", False, "Log placement of ops on devices")
 tf.flags.DEFINE_string("output", '', "Log placement of ops on devices")
 # hyper-parameters
@@ -61,11 +62,11 @@ else:
 orig_stdout = sys.stdout
 
 timestamp = time.strftime("%b_%d_%Y_%H_%M_%S", time.localtime())
+data_name = FLAGS.data_file.split('.')[0]
 if output == '':
-    output = 'output_{}'.format(timestamp)
-if not os.path.exists(output):
-    os.makedirs(output)
-
+    output = '{}_{}'.format(data_name, timestamp)
+if not os.path.exists('runs/{}'.format(output)):
+    os.makedirs('runs/{}'.format(output))
 
 # Setting logger
 logger = logging.getLogger()
@@ -85,7 +86,7 @@ logger.addHandler(ch)
 
 logger.info("Parameters:")
 for attr, value in sorted(FLAGS.__flags.items()):
-    logger.info("\t{}={}".format(attr.upper(), value))
+    logger.info("\t{}={}".format(attr.upper(), value.value))
 
 # print("\nParameters:")
 # for attr, value in sorted(FLAGS.__flags.items()):
@@ -100,7 +101,6 @@ vocab_size = len(word_idx) + 1
 # stat info on data set
 logger.info('Glove loaded.')
 for essay_set_id in essay_set_id_list:
-    logger_in.info('\n------------------Runing on %d------------------' % essay_set_id)
 
     folder_name = '{}/essay_set_{}_nsample_{}'.format(output, essay_set_id, num_samples)
     out_dir = os.path.abspath(os.path.join(os.path.curdir, "runs", folder_name))
@@ -108,8 +108,10 @@ for essay_set_id in essay_set_id_list:
         os.makedirs(out_dir)
 
     # Setting logger
-    logger_in = logging.getLogger()
-    logger_in.setLevel(logging.INFO)
+    logger.handlers = []
+
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
 
     fh_in = logging.FileHandler('{}/log.txt'.format(out_dir))
     fh_in.setLevel(logging.INFO)
@@ -119,10 +121,11 @@ for essay_set_id in essay_set_id_list:
     ch_in.setFormatter(formatter)
     logger.addHandler(fh_in)
     logger.addHandler(ch_in)
-    # Setting logger_in done.
+    # Setting logger done.
 
     # save output to a file
-    logger_in.info("Writing to {}\n".format(out_dir))
+    logger.info('\n------------------Runing on %d------------------' % essay_set_id)
+    logger.info("Writing to {}\n".format(out_dir))
 
     with open(out_dir+'/params', 'w') as f:
         for attr, value in sorted(FLAGS.__flags.items()):
@@ -130,17 +133,17 @@ for essay_set_id in essay_set_id_list:
             f.write("\n")
 
     # hyper-parameters end here
-    training_path = 'training_set_rel3.tsv'
+    training_path = FLAGS.data_file
     essay_list, resolved_scores, essay_id = data_utils.load_training_data(training_path, essay_set_id)
 
     max_score = max(resolved_scores)
     min_score = min(resolved_scores)
-    if essay_set_id == 7:
-        min_score, max_score = 0, 30
-    elif essay_set_id == 8:
-        min_score, max_score = 0, 60
+    # if essay_set_id == 7:
+    #     min_score, max_score = 0, 30
+    # elif essay_set_id == 8:
+    #     min_score, max_score = 0, 60
 
-    logger_in.info('max_score is {} \t min_score is {}\n'.format(max_score, min_score))
+    logger.info('max_score is {} \t min_score is {}\n'.format(max_score, min_score))
     with open(out_dir+'/params', 'a') as f:
         f.write('max_score is {} \t min_score is {} \n'.format(max_score, min_score))
 
@@ -153,11 +156,11 @@ for essay_set_id in essay_set_id_list:
     max_sent_size = max(sent_size_list)
     mean_sent_size = int(np.mean(list(map(len, essay_list))))
 
-    logger_in.info('max sentence size: {} \nmean sentence size: {}\n'.format(max_sent_size, mean_sent_size))
+    logger.info('max sentence size: {} \nmean sentence size: {}\n'.format(max_sent_size, mean_sent_size))
     with open(out_dir+'/params', 'a') as f:
         f.write('max sentence size: {} \nmean sentence size: {}\n'.format(max_sent_size, mean_sent_size))
 
-    logger_in.info('The length of score range is {}'.format(len(score_range)))
+    logger.info('The length of score range is {}'.format(len(score_range)))
     E = data_utils.vectorize_data(essay_list, word_idx, max_sent_size)
 
     labeled_data = zip(E, resolved_scores, sent_size_list) # vector, score, length
@@ -165,12 +168,13 @@ for essay_set_id in essay_set_id_list:
     # split the data on the fly
     #trainE, testE, train_scores, test_scores, train_sent_sizes, test_sent_sizes = cross_validation.train_test_split(
     #    E, resolved_scores, sent_size_list, test_size=.2, random_state=random_state)
-
-    #trainE, evalE, train_scores, eval_scores, train_sent_sizes, eval_sent_sizes = cross_validation.train_test_split(
-    #    trainE, train_scores, train_sent_sizes, test_size=.1, random_state=random_state)
-    # split the data on the fly
-    trainE, testE, train_scores, test_scores, train_essay_id, test_essay_id = cross_validation.train_test_split(
+    #     E, resolved_scores, essay_id, test_size=.2, random_state=random_state)
+    # trainE, evalE, train_scores, eval_scores, train_essay_id, eval_essay_id = cross_validation.train_test_split(
+    #     trainE, train_scores, train_essay_id, test_size=.2)
+    trainE, testE, train_scores, test_scores, train_essay_id, test_essay_id = train_test_split(
         E, resolved_scores, essay_id, test_size=.2, random_state=random_state)
+    trainE, evalE, train_scores, eval_scores, train_essay_id, eval_essay_id = train_test_split(
+        trainE, train_scores, train_essay_id, test_size=.25)
 
     memory = []
     memory_score = []
@@ -190,9 +194,8 @@ for essay_set_id in essay_set_id_list:
                 memory_score.append(score)
                 memory_essay_ids.append(train_essay_id.pop(score_idx))
                 memory_sent_size.append(sent_size)
+
     memory_size = len(memory)
-    trainE, evalE, train_scores, eval_scores, train_essay_id, eval_essay_id = cross_validation.train_test_split(
-        trainE, train_scores, train_essay_id, test_size=.2)
     # convert score to one hot encoding
     train_scores_encoding = list(map(lambda x: score_range.index(x), train_scores))
 
@@ -201,9 +204,9 @@ for essay_set_id in essay_set_id_list:
     n_test = len(testE)
     n_eval = len(evalE)
 
-    logger_in.info('The size of training data: {}'.format(n_train))
-    logger_in.info('The size of testing data: {}'.format(n_test))
-    logger_in.info('The size of evaluation data: {}'.format(n_eval))
+    logger.info('The size of training data: {}'.format(n_train))
+    logger.info('The size of testing data: {}'.format(n_test))
+    logger.info('The size of evaluation data: {}'.format(n_eval))
     with open(out_dir+'/params', 'a') as f:
         f.write('The size of training data: {}\n'.format(n_train))
         f.write('The size of testing data: {}\n'.format(n_test))
@@ -217,7 +220,7 @@ for essay_set_id in essay_set_id_list:
     batches = zip(range(0, n_train-batch_size, batch_size), range(batch_size, n_train, batch_size))
     batches = [(start, end) for start, end in batches]
 
-    with tf.Graph().as_default():
+    with tf.Graph().as_default(), tf.device('/gpu:0'):
         session_conf = tf.ConfigProto(
             allow_soft_placement=FLAGS.allow_soft_placement,
             log_device_placement=FLAGS.log_device_placement)
@@ -232,6 +235,7 @@ for essay_set_id in essay_set_id_list:
         optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate, epsilon=FLAGS.epsilon)
         best_test_kappa_so_far = 0.0
         best_eval_kappa_so_far = 0.0
+        best_epoch = 0
         with tf.Session(config=session_conf) as sess:
             model = MemN2N_KV(batch_size, vocab_size, max_sent_size, max_sent_size, memory_size,
                               memory_size, embedding_size, len(score_range), feature_size, hops, reader, l2_lambda)
@@ -254,6 +258,7 @@ for essay_set_id in essay_set_id_list:
             sess.run(tf.global_variables_initializer(), feed_dict={model.w_placeholder: word2vec})
 
             saver = tf.train.Saver(tf.all_variables())
+            # saver = tf.train.Saver(tf.global_varialbes())
 
             def train_step(m, e, s, ma):
                 start_time = time.time()
@@ -303,7 +308,7 @@ for essay_set_id in essay_set_id_list:
                     _, cost, time_spent = train_step(batched_memory, e, s, mem_atten_encoding)
                     total_time += time_spent
                     train_cost += cost
-                logger_in.info('Finish epoch {}, total training cost is {}, time spent is {}'.format(i, train_cost, total_time))
+                logger.info('Finish epoch {}, total training cost is {}, time spent is {}'.format(i, train_cost, total_time))
                 # evaluation
                 if i % FLAGS.evaluation_interval == 0 or i == FLAGS.epochs:
                     # test on training data
@@ -357,6 +362,7 @@ for essay_set_id in essay_set_id_list:
                     if(eval_kappa_score > best_eval_kappa_so_far):
                         best_eval_kappa_so_far = eval_kappa_score
                         best_test_kappa_so_far = test_kappa_score
+                        best_epoch = i
                         # stats on test
                         stat_df.to_csv(out_dir+'/stat')
                         with open(out_dir+'/mem_atten', 'a') as f:
@@ -364,15 +370,15 @@ for essay_set_id in essay_set_id_list:
                                 f.write('{}\n'.format(ite))
                                 f.write('{}\n'.format(test_atten_probs[idx]))
                         #saver.save(sess, out_dir+'/checkpoints', global_step)
-                    logger_in.info("Training kappa score = {}".format(train_kappa_score))
-                    logger_in.info("Validation kappa score = {}".format(eval_kappa_score))
-                    logger_in.info("Testing kappa score = {}".format(test_kappa_score))
-                    logger_in.info("Best kappa score = {} at epoch {}".format(best_test_kappa_so_far, i))
+                    logger.info("Training kappa score = {}".format(train_kappa_score))
+                    logger.info("Validation kappa score = {}".format(eval_kappa_score))
+                    logger.info("Testing kappa score = {}".format(test_kappa_score))
+                    logger.info("Best kappa score = {} at epoch {}".format(best_test_kappa_so_far, best_epoch))
                     with open(out_dir+'/eval', 'a') as f:
                         f.write("Training kappa score = {}\n".format(train_kappa_score))
                         f.write("Validation kappa score = {}\n".format(eval_kappa_score))
                         f.write("Testing kappa score = {}\n".format(test_kappa_score))
-                        f.write("Best Testing kappa score so far = {}\n".format(best_test_kappa_so_far))
+                        f.write("Best Testing kappa score so far = {} at epoch {}\n".format(best_test_kappa_so_far, best_epoch))
                         f.write('*'*10)
                         f.write('\n')
     #sys.stdout = orig_stdout
