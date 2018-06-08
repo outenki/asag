@@ -129,7 +129,7 @@ for essay_set_id in essay_set_id_list:
 
     with open(out_dir+'/params', 'w') as f:
         for attr, value in sorted(FLAGS.__flags.items()):
-            f.write("{}={}".format(attr.upper(), value))
+            f.write("{}={}".format(attr.upper(), value.value))
             f.write("\n")
 
     # hyper-parameters end here
@@ -220,6 +220,7 @@ for essay_set_id in essay_set_id_list:
     batches = zip(range(0, n_train-batch_size, batch_size), range(batch_size, n_train, batch_size))
     batches = [(start, end) for start, end in batches]
 
+    # with tf.Graph().as_default(), tf.device('/gpu:0'):
     with tf.Graph().as_default(), tf.device('/gpu:0'):
         session_conf = tf.ConfigProto(
             allow_soft_placement=FLAGS.allow_soft_placement,
