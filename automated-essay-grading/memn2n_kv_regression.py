@@ -124,12 +124,8 @@ class MemN2N_KV(object):
         #                          initializer=tf.contrib.layers.xavier_initializer())
 
         # Embedding layer
-        #nil_word_slot = tf.zeros([1, embedding_size])
-        #self.W = tf.concat(0, [nil_word_slot, tf.get_variable('W', shape=[vocab_size-1, embedding_size],
-        #                                                      initializer=tf.contrib.layers.xavier_initializer())])
         self.W = tf.Variable(self.w_placeholder, trainable=False)
         self.W_memory = self.W
-        #self._nil_vars = set([self.W.name, self.W_memory.name])
         # shape: [batch_size, query_size, embedding_size]
         self.embedded_chars = tf.nn.embedding_lookup(self.W, self._query)
         # shape: [batch_size, memory_size, story_size, embedding_size]

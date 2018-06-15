@@ -8,9 +8,9 @@ import numpy as np
 def load_training_data(training_path, essay_set=1):
     training_df = pd.read_csv(training_path, delimiter='\t')
     # resolved score for essay set 1
-    resolved_score = training_df[training_df['essay_set'] == essay_set]['domain1_score']
-    essay_ids = training_df[training_df['essay_set'] == essay_set]['essay_id']
-    essays = training_df[training_df['essay_set'] == essay_set]['essay']
+    resolved_score = training_df[training_df['prompt'] == essay_set]['score']
+    essay_ids = training_df[training_df['prompt'] == essay_set]['ans_id']
+    essays = training_df[training_df['prompt'] == essay_set]['answer']
     essay_list = []
     # turn an essay to a list of words
     for idx, essay in essays.iteritems():
@@ -98,7 +98,6 @@ def vectorize_data(data, word_idx, sentence_size):
             if w in word_idx:
                 wl.append(word_idx[w])
             else:
-                #print '{} is not in vocab'.format(w)
                 wl.append(0)
         wl += [0]*ls
         E.append(wl)

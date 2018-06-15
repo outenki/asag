@@ -78,7 +78,7 @@ class MemN2N_KV(object):
         memory_key_size: the size of memory slots for keys
         memory_value_size: the size of memory slots for values
         
-        feature_size: dimension of feature extraced from word embedding
+        feature_size: dimension of feature extracted from word embedding
 
         hops: The number of hops. A hop consists of reading and addressing a memory slot.
 
@@ -163,7 +163,8 @@ class MemN2N_KV(object):
         with tf.name_scope("prediction"):
             #logits = tf.matmul(o, y_tmp)# + logits_bias
             logits = tf.matmul(o, self.B) + logits_bias
-            probs = tf.nn.softmax(tf.cast(logits, tf.float32))
+            # probs = tf.nn.softmax(tf.cast(logits, tf.float32))
+            probs = tf.nn.sigmoid(tf.cast(logits, tf.float32))
             
             cross_entropy = tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=tf.cast(self._labels, tf.float32), name='cross_entropy')
             cross_entropy_sum = tf.reduce_sum(cross_entropy, name="cross_entropy_sum")
