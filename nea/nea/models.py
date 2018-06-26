@@ -3,7 +3,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def create_model(args, initial_mean_value, overal_maxlen, vocab):
+# def create_model(args, initial_mean_value, overal_maxlen, vocab):
+def create_model(args, initial_mean_value, vocab):
     
     from keras.layers.embeddings import Embedding
     from keras.models import Sequential
@@ -64,7 +65,10 @@ def create_model(args, initial_mean_value, overal_maxlen, vocab):
 
     # Add LSTM RNN layer
     logger.info('    Adding the LSTM-RNN layer')
-    layer = RNN(args.rnn_dim, return_sequences=True) #, dropout_W=dropout_W, dropout_U=dropout_U)
+    if 'p' in args.model_type:
+        layer = RNN(args.rnn_dim, return_sequences=True) #, dropout_W=dropout_W, dropout_U=dropout_U)
+    else:
+        layer = RNN(args.rnn_dim, return_sequences=False)
     if 'b' in args.model_type:
         # BiLSTM
         logger.info('        Bidirectional layer created!')
@@ -73,12 +77,13 @@ def create_model(args, initial_mean_value, overal_maxlen, vocab):
     logger.info('    Done')
 
     # Add MOT or ATT layer
-    if args.aggregation == 'mot':
-        logger.info('    Adding the MOT layer')
-        model.add(MeanOverTime(mask_zero=True))
-    elif args.aggregation.startswith('att'):
-        logger.info('    Adding the ATT layer')
-        model.add(Attention(op=args.aggregation, activation='tanh', name='att', init_stdev=0.01))
+    if 'p' in args.model_type:
+        if args.aggregation == 'mot':
+            logger.info('    Adding the MOT layer')
+            model.add(MeanOverTime(mask_zero=True))
+        elif args.aggregation.startswith('att'):
+            logger.info('    Adding the ATT layer')
+            model.add(Attention(op=args.aggregation, activation='tanh', name='att', init_stdev=0.01))
 
     model.add(Dense(num_outputs))
     logger.info('    Done')
