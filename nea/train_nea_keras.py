@@ -11,9 +11,7 @@ import pickle as pk
 import nea.asap_reader as dataset
 from keras.preprocessing import sequence
 import keras
-from keras.models import load_model, model_from_json
-import sys
-sys.setrecursionlimit(10000)
+from keras.models import load_model
 
 logger = logging.getLogger(__name__)
 
@@ -145,9 +143,6 @@ train_y = dataset.get_model_friendly_scores(train_y, train_pmt)
 dev_y = dataset.get_model_friendly_scores(dev_y, dev_pmt)
 test_y = dataset.get_model_friendly_scores(test_y, test_pmt)
 
-np.savetxt(out_dir + '/test_x.txt', test_x, fmt='%d')
-np.savetxt(out_dir + '/test_y_org.txt', test_y_org, fmt='%.4f')
-np.savetxt(out_dir + '/test_y.txt', test_y, fmt='%.4f')
 ###############################################################################################################################
 ## Optimizaer algorithm
 #
@@ -188,70 +183,44 @@ with open(out_dir + '/model_arch.json', 'w') as arch:
     arch.write(model.to_json(indent=2))
 logger.info('  Done')
 
-f_h5_best_model_cb = os.path.join(out_dir, 'best_model_cb.h5')
-f_h5_best_weights_cb = os.path.join(out_dir, 'best_weights_cb.h5')
-f_h5_best_model = os.path.join(out_dir, 'best_model.h5')
-f_h5_best_weights = os.path.join(out_dir, 'best_model.h5')
-f_json_best_model = os.path.join(out_dir, 'best_model.json')
-f_pkl_best_model = os.path.join(out_dir, 'best_model.pkl')
-
 f_log = os.path.join(out_dir, 'train.log')
 tb_cb = keras.callbacks.TensorBoard(log_dir=f_log, histogram_freq=1)
-cpw_cb = keras.callbacks.ModelCheckpoint(filepath = f_h5_best_weights_cb, monitor='val_loss', verbose=1, save_best_only=True, save_weights_only=True, mode='auto')
-cpm_cb = keras.callbacks.ModelCheckpoint(filepath = f_h5_best_model_cb, monitor='val_loss', verbose=1, save_best_only=True, mode='auto')
-es_cb = keras.callbacks.EarlyStopping(monitor='val_loss', patience=10, verbose=1, mode='auto')
+cpw_cb = keras.callbacks.ModelCheckpoint(filepath = os.path.join(out_dir,'best_weight_cb.h5'), monitor='val_loss', verbose=1, save_best_only=True, save_weights_only=True, mode='auto')
+cpm_cb = keras.callbacks.ModelCheckpoint(filepath = os.path.join(out_dir,'best_model_cb.h5'), monitor='val_loss', verbose=1, save_best_only=True, mode='auto')
+es_cb = keras.callbacks.EarlyStopping(monitor='val_loss', patience=2, verbose=1, mode='auto')
 cbks = [tb_cb, cpw_cb, cpm_cb, es_cb]
 
 history = model.fit(train_x, train_y, batch_size=args.batch_size, epochs=args.epochs, verbose=1, callbacks=cbks, validation_data=(dev_x, dev_y), shuffle=True)
 
-logger.info('Loading model saved by checkpoint from %s', out_dir+'/best_model_cb.h5')
-model_load_cb = load_model(out_dir + '/best_model_cb.h5', custom_objects={'MeanOverTime': MeanOverTime()})
-model_load_cb.summary()
-test_pred = model_load_cb.predict(test_x).squeeze() * 3
-qwk = QWK(test_y_org.astype(int), np.rint(test_pred).astype(int), labels=None, weights='quadratic', sample_weight=None)
-logger.info('QWK: %f\n', qwk)
-np.savetxt(out_dir + '/test_pred_model_load_cb.txt', test_pred, fmt='%.4f')
-
-# save model with json (structure) and h5 (weights)
-logger.info('Saving model.json to %s', f_json_best_model)
-json_model = model_load_cb.to_json()
-with open(f_json_best_model, 'w') as json_file:
-    json_file.write(json_model)
-
-logger.info('Saving weight to %s', f_h5_best_weights)
-model.save_weights(f_h5_best_weights)
-
-logger.info('Saving model.pkl to %s', f_pkl_best_model)
-with open(f_pkl_best_model, 'wb') as fpkl:
-    pk.dump(model,fpkl)
-
 # Load best model
-logger.info('Loading weights saved by checkpoint from %s', f_h5_best_weights_cb)
-model_weight_cb = create_model(args, train_y.mean(axis=0), vocab)
-model_weight_cb.compile(optimizer = optimizer, loss = loss)
-model_weight_cb.load_weights(f_h5_best_weights_cb)
-model_weight_cb.summary()
-test_pred = model_weight_cb.predict(test_x).squeeze() * 3
-qwk = QWK(test_y_org.astype(int), np.rint(test_pred).astype(int), labels=None, weights='quadratic', sample_weight=None)
-logger.info('QWK: %f\n', qwk)
-np.savetxt(out_dir + '/test_pred_model_weights_cb.txt', test_pred, fmt='%.4f')
+logger.info('Loading weights from %s', out_dir + '/best_model_weight_cb.h5')
+model_weight = create_model(args, train_y.mean(axis=0), vocab)
+model_weight.compile(optimizer = optimizer, loss = loss)
+model_weight.load_weights(out_dir + '/best_model_weight_cb.h5', by_name=True)
+model_weight.model.save(out_dir+'/best_model.h5', overwrite=True)
 
-logger.info('Loading model with json from %s and h5 from %s', f_json_best_model, f_h5_best_weights)
-json_model = open(f_json_best_model).read()
-model_json = model_from_json(json_model, custom_objects={'MeanOverTime': MeanOverTime})
-model_json.summary()
-model_json.compile(loss=loss, optimizer = optimizer)
-model_json.load_weights(f_h5_best_weights)
-test_pred = model_json.predict(test_x).squeeze() * 3
-qwk = QWK(test_y_org.astype(int), np.rint(test_pred).astype(int), labels=None, weights='quadratic', sample_weight=None)
-logger.info('QWK: %f\n', qwk)
-np.savetxt(out_dir + '/test_pred_model_json.txt', test_pred, fmt='%.4f')
+logger.info('Loading model from %s', out_dir+'/best_model_cb.h5')
+model_load = load_model(out_dir + '/best_model_cb.h5', custom_objects={'MeanOverTime': MeanOverTime()})
+model_load.save_weights(out_dir + '/best_model_weights.h5')
 
-logger.info('Loading model with pkl from %s', f_pkl_best_model)
-with open(f_pkl_best_model, 'rb') as fpk:
-    model_pkl = pk.load(fpk)
-    model_pkl.summary()
-test_pred = model_pkl.predict(test_x).squeeze() * 3
+np.savetxt(out_dir + '/test_x.txt', test_x, fmt='%d')
+np.savetxt(out_dir + '/test_y_org.txt', test_y_org, fmt='%.4f')
+np.savetxt(out_dir + '/test_y.txt', test_y, fmt='%.4f')
+
+logger.info('Evaluate model_load:')
+# score, accu = model_load.evaluate(test_x, test_y, verbose=1)
+test_pred = model_load.predict(test_x).squeeze() * 3
 qwk = QWK(test_y_org.astype(int), np.rint(test_pred).astype(int), labels=None, weights='quadratic', sample_weight=None)
-logger.info('QWK: %f\n', qwk)
-np.savetxt(out_dir + '/test_pred_model_pkl.txt', test_pred, fmt='%.4f')
+np.savetxt(out_dir + '/test_pred_model_load.txt', test_pred, fmt='%.4f')
+# logger.info('\tSCROE: %f', score)
+# logger.info('\tACCURACYT: %f', accu)
+logger.info('\tQWK: %f', qwk)
+
+logger.info('Evaluate model_weight:')
+# score, accu = model_weight.evaluate(test_x, test_y, verbose=1)
+test_pred = model_weight.predict(test_x).squeeze() * 3
+qwk = QWK(test_y_org.astype(int), np.rint(test_pred).astype(int), labels=None, weights='quadratic', sample_weight=None)
+np.savetxt(out_dir + '/test_pred_model_weight.txt', test_pred, fmt='%.4f')
+# logger.info('\tSCROE: %f', score)
+# logger.info('\tACCURACYT: %f', accu)
+logger.info('\tQWK: %f', qwk)
